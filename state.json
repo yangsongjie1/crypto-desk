@@ -1,0 +1,12 @@
+{
+ "verdict": {
+  "BTC": "wait",
+  "ETH": "wait",
+  "SOL": "wait",
+  "BNB": "wait",
+  "XRP": "wait"
+ },
+ "sent": [
+  "BNB|4h|ema_trend|1792771200000|sell"
+ ]
+}
