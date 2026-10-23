@@ -211,10 +211,9 @@ const SOURCES = [
       return rows(out, total);
     } },
   { name: "OKX", async klines(b, tf, total) {
-      total = Math.min(total, 1500);
       const bar = { "1d": "1Dutc", "4h": "4H", "30m": "30m" }[tf], out = new Map();
       let after = "";
-      for (let p = 0; p < 16 && out.size < total; p++) {
+      for (let p = 0; p < 31 && out.size < total; p++) {
         const j = await getJSON(`https://www.okx.com/api/v5/market/history-candles?instId=${b}-${QUOTE}&bar=${bar}&limit=100${after ? "&after=" + after : ""}`);
         if (j.code !== "0") throw new Error(j.msg);
         if (!j.data.length) break;
