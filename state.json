@@ -8,7 +8,8 @@
  },
  "sent": [
   "BNB|4h|ema_trend|1792771200000|sell",
-  "XRP|swing|1792828800000|平空"
+  "XRP|swing|1792828800000|平空",
+  "DOGE|swing|1792843200000|平空"
  ],
  "swing": {
   "BTC": {
@@ -29,11 +30,11 @@
   },
   "XRP": {
    "dir": -1,
-   "action": "平空"
+   "action": "观望"
   },
   "DOGE": {
    "dir": -1,
-   "action": "持空中"
+   "action": "平空"
   },
   "ADA": {
    "dir": 0,
