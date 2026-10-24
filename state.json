@@ -8,5 +8,27 @@
  },
  "sent": [
   "BNB|4h|ema_trend|1792771200000|sell"
- ]
+ ],
+ "swing": {
+  "BTC": {
+   "dir": 1,
+   "action": "观望"
+  },
+  "ETH": {
+   "dir": 1,
+   "action": "观望"
+  },
+  "SOL": {
+   "dir": 1,
+   "action": "观望"
+  },
+  "BNB": {
+   "dir": 1,
+   "action": "观望"
+  },
+  "XRP": {
+   "dir": -1,
+   "action": "持空中"
+  }
+ }
 }
