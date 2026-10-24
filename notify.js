@@ -219,6 +219,7 @@ const SOURCES = [
   { name: "Binance", klines: (b, tf, total) => binanceLike("https://data-api.binance.vision", b, tf, total) },
   { name: "Binance.US", klines: (b, tf, total) => binanceLike("https://api.binance.us", b, tf, total) },
 ];
+SOURCES.unshift(SOURCES.splice(SOURCES.findIndex(s => s.name === "Gate"), 1)[0]);
 let preferred = 0;
 async function klines(b, tf) {
   const order = [preferred, ...SOURCES.map((_, i) => i).filter(i => i !== preferred)], errs = [];

@@ -397,6 +397,7 @@ const SOURCES = [
     } },
 ];
 const sortRows = (map, total) => [...map.values()].sort((a, b) => a[0] - b[0]).slice(-total);
+SOURCES.unshift(SOURCES.splice(SOURCES.findIndex(s => s.id === "gate"), 1)[0]);
 const srcName = id => (SOURCES.find(s => s.id === id) || {}).name || "—";
 const load = (k, d) => { try { const v = localStorage.getItem("desk:" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
 const save = (k, v) => { try { localStorage.setItem("desk:" + k, JSON.stringify(v)); } catch (e) {} };
@@ -405,7 +406,7 @@ const S = {
   jfilter: load("jfilter", "all"),
   prefs: Object.assign({ capital: 1000, risk: 1, maxAlloc: 40, colors: "cn" }, load("prefs", {})),
   follow: load("follow", {}),
-  src: load("src", null), srcOk: false, srcError: null, lastOk: 0,
+  src: null, srcOk: false, srcError: null, lastOk: 0,
   coins: Object.fromEntries(SYMBOLS.map(b => [b, { price: null, change: null, tf: {} }])),
   progress: { done: 0, total: SYMBOLS.length * TFS.length }, diag: null, testing: false,
 };
