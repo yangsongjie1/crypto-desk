@@ -653,7 +653,7 @@ function swingBox(b) {
   const active = ["开多", "开空", "持多中", "持空中"].includes(v.action), sd = v.side || v.dir;
   let now;
   if (v.action === "开多" || v.action === "开空") now = `刚出现<b>${v.action}</b>信号（4 小时收盘于 ${md(v.barTs + TF_MS["4h"])}），参考进场价 ${px(price)}。`;
-  else if (active) { const g = v.side > 0 ? price / v.entry - 1 : v.entry / price - 1; now = `${ago(v.sinceBars, "4h")}在 ${px(v.entry)} ${v.side > 0 ? "开多" : "开空"}，至今 <span class="num ${dir(g)}">${pct(g)}</span>。${followText(v)}`; }
+  else if (active) { const g = v.side > 0 ? price / v.entry - 1 : v.entry / price - 1; now = `${followAge(v)}前在 ${px(v.entry)} ${v.side > 0 ? "开多" : "开空"}，至今 <span class="num ${dir(g)}">${pct(g)}</span>。${followText(v)}`; }
   else if (v.action === "平多" || v.action === "平空") now = `刚出现<b>${v.action}</b>信号，${v.action === "平多" ? "多单" : "空单"}应该离场。`;
   else now = needText(v);
   let levels = "";
@@ -662,12 +662,12 @@ function swingBox(b) {
     const qty = dist > 0 ? Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / price) : 0;
     levels = `<p>止损：4 小时收盘价${v.side > 0 ? "跌破" : "站上"} <b class="num">${px(v.stop)}</b>（跟着 200 均线移动）</p>
       <p>止盈：4 小时 RSI ${v.side > 0 ? "升到 65 以上" : "跌到 35 以下"}（现在 ${v.rsi.toFixed(0)}）</p>
-      ${qty ? `<p>仓位：每次最多亏本金的 ${risk}%，约 <b class="num">${qty.toPrecision(3)}</b> ${b}（≈ ${Math.round(qty * price)} U），杠杆不超过 2 倍。</p>` : ""}`;
+      ${qty ? `<p>仓位：每次最多亏本金的 ${risk}%，约 <b class="num">${qty >= 100 ? Math.round(qty).toLocaleString("en-US") : qty.toPrecision(3)}</b> ${b}（≈ ${Math.round(qty * price)} U），杠杆不超过 2 倍。</p>` : ""}`;
   }
   let odds = "日线方向明确后，才有对应方向的历史胜算。";
   if (v.phase === "nolong") { const p = pooled(1); if (p) odds = `做多的历史：${SYMBOLS.length} 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}，没有优势，所以不做。`; }
   else if (sd) { const s = v.stats[sd > 0 ? "L" : "S"], p = pooled(sd), nm = sd > 0 ? "做多" : "做空";
-    odds = s.n ? `历史胜算：${b} 用这个方法${nm} ${s.n} 次，赚 ${s.w} 次（胜率 ${s.win}%），平均每次 <b class="${dir(s.avg)}">${sgn(s.avg)}</b>${p ? `。5 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}` : ""}。` : `${b} 历史上这种${nm}机会太少，没有参考数据。`; }
+    odds = s.n ? `历史胜算：${b} 用这个方法${nm} ${s.n} 次，赚 ${s.w} 次（胜率 ${s.win}%），平均每次 <b class="${dir(s.avg)}">${sgn(s.avg)}</b>${p ? `。${SYMBOLS.length} 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}` : ""}。` : `${b} 历史上这种${nm}机会太少，没有参考数据。`; }
   return `<div class="sw"><div class="swtop"><span class="act ${cls}">${v.action}</span>${followTag(v)}<span class="swdir">${dirLine}</span></div>
     <p class="vtext">${now}</p>${levels}<p class="odds">${odds}</p></div>`;
 }
