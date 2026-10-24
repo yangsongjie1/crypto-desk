@@ -631,7 +631,7 @@ function swingBox(b) {
   if (!v) return `<div class="sw"><p class="vtext">正在计算…</p></div>`;
   const price = priceOf(b) ?? v.price;
   const cls = { "开多": "long", "持多中": "long", "开空": "short", "持空中": "short", "平多": "exit", "平空": "exit", "观望": "wait" }[v.action];
-  const dirLine = v.dir > 0 ? "日线向上 → 只做多" : v.dir < 0 ? "日线向下 → 只做空" : "日线方向不明 → 不做";
+  const dirLine = v.dir > 0 ? "日线向上 → 不做（做多没优势）" : v.dir < 0 ? "日线向下 → 只做空" : "日线方向不明 → 不做";
   const active = ["开多", "开空", "持多中", "持空中"].includes(v.action), sd = v.side || v.dir;
   let now;
   if (v.action === "开多" || v.action === "开空") now = `刚出现<b>${v.action}</b>信号（4 小时收盘于 ${md(v.barTs + TF_MS["4h"])}），参考进场价 ${px(price)}。`;
