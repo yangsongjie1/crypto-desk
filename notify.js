@@ -163,8 +163,8 @@ Object.assign(globalThis, { TF_MS, WARMUP, STRATEGIES, analyze });
 const fs = require("fs");
 const KEY = (process.env.BARK_KEY || "").trim().replace(/^https?:\/\/api\.day\.app\//, "").replace(/\/.*$/, "");
 const PAGE = "https://yangsongjie1.github.io/crypto-desk/";
-const SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP"], QUOTE = "USDT";
-const HISTORY = { "1d": 2000, "4h": 6000 };
+const SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "LTC", "DOT", "TRX", "BCH"], QUOTE = "USDT";
+const HISTORY = { "1d": 1000, "4h": 2000 };
 const STEP = { "1d": 86400000, "4h": 14400000 };
 const fmt = p => p >= 1000 ? p.toFixed(2) : p >= 10 ? p.toFixed(3) : p >= 1 ? p.toFixed(4) : p.toFixed(5);
 const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
@@ -275,22 +275,22 @@ async function push(title, body, important) {
   const first = !state.swing;
   state.swing = state.swing || {};
   const sent = new Set(state.sent || []), events = [], summary = [], used = new Set();
-  const dn = d => d > 0 ? "向上（只做多）" : d < 0 ? "向下（只做空）" : "不明（不做）";
+  const dn = d => d > 0 ? "向上（不做）" : d < 0 ? "向下（只做空）" : "不明（不做）";
   for (const b of SYMBOLS) {
     let v;
-    try { const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h"); used.add(s1); used.add(s4); v = swingCalc(toK(r4, "4h"), toK(r1, "1d")); }
+    try { const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h"); used.add(s1); used.add(s4); v = swingCalc(toK(r4, "4h"), toK(r1, "1d")); if (v.dir > 0) Object.assign(v, { action: "观望", side: 0 }); }
     catch (e) { console.log(b, "拉取失败：", e.message); continue; }
     summary.push(`${b} ${fmt(v.price)}：${v.action}，日线${dn(v.dir)}`);
     const prev = state.swing[b];
     if (!first && prev && prev.dir !== v.dir)
-      events.push({ important: true, title: `${b} 日线方向变为${dn(v.dir)}`, body: `现在${v.dir > 0 ? "只找做多机会" : v.dir < 0 ? "只找做空机会" : "不做"}。现价 ${fmt(v.price)}。点开看详情。` });
+      events.push({ important: true, title: `${b} 日线方向变为${dn(v.dir)}`, body: `现在${v.dir > 0 ? "不做（做多没优势，也别逆势做空）" : v.dir < 0 ? "只找做空机会" : "不做"}。现价 ${fmt(v.price)}。点开看详情。` });
     if (["开多", "开空", "平多", "平空"].includes(v.action)) {
       const key = `${b}|swing|${v.barTs}|${v.action}`;
       if (!sent.has(key)) { sent.add(key);
         if (!first) {
           const sd = v.action === "开多" ? 1 : v.action === "开空" ? -1 : 0, s = sd ? v.stats[sd > 0 ? "L" : "S"] : null;
           const body = sd
-            ? `参考价 ${fmt(v.price)}。止损：4小时收盘${sd > 0 ? "跌破" : "站上"} ${fmt(v.stop)}。止盈：4小时 RSI ${sd > 0 ? "升到 65 以上" : "跌到 35 以下"}。${s && s.n ? `历史上这样做 ${s.n} 次，胜率 ${s.win}%，平均每次 ${sgn(s.avg)}。` : ""}每次最多亏本金 1%，杠杆不超过 2 倍。`
+            ? `参考价 ${fmt(v.price)}。止损：4小时收盘${sd > 0 ? "跌破" : "站上"} ${fmt(v.stop)}。止盈：4小时 RSI ${sd > 0 ? "升到 65 以上" : "跌到 35 以下"}。历史胜算见页面。每次最多亏本金 1%，杠杆不超过 2 倍。`
             : `${v.action === "平多" ? "多单" : "空单"}离场信号。现价 ${fmt(v.price)}。`;
           events.push({ important: true, title: `${b} ${v.action}`, body });
         } }
@@ -301,6 +301,8 @@ async function push(title, body, important) {
   console.log(summary.join("\n"));
   if (!summary.length) { process.exitCode = 1; return; }
   if (first) await push("盯盘已升级：多空指令", summary.join("\n"), false);
+  if (!first && !state.v3) await push("盯盘已更新：13 个币，只提示做空", summary.join("\n"), false);
+  state.v3 = 1;
   if (events.length > 6) await push(`${events.length} 条新提醒`, events.map(e => e.title).join("\n"), true);
   else for (const e of events) await push(e.title, e.body, e.important);
   if (!KEY) { console.log("没有设置 BARK_KEY：这次只是试运行，不保存状态。"); return; }
