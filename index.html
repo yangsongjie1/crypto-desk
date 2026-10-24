@@ -136,8 +136,8 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .sw p { margin: 6px 0; font-size: 14px; }
 .odds { font-size: 13px !important; color: var(--muted); background: var(--sunk); border-radius: 8px; padding: 8px 10px; }
 .odds b.up { color: var(--up); } .odds b.down { color: var(--down); }
-.fol { display: inline-block; margin: 4px 8px 0 0; padding: 1px 8px; border-radius: 6px; font-size: 13px; }
-.fol.ok { background: var(--down); color: #fff; } .fol.no { background: var(--sunk); color: var(--muted); }
+.fol { display: inline-block; padding: 3px 10px; border-radius: 8px; font-size: 14px; font-weight: 700; }
+.fol.ok { background: var(--down); color: #fff; } .fol.no { background: var(--sunk); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--idle); }
 .oldbtn { display: block; width: 100%; margin: 16px 0 8px; border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 10px; font-size: 13px; cursor: pointer; }
 </style>
 </head>
@@ -630,11 +630,19 @@ function needText(v) {
   if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 65 以下就会发出开空信号。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
   return v.dir < 0 ? `等反弹：4 小时 RSI 升到 65 以上再回落时开空（现在 RSI ${r}）。` : `等回调：4 小时 RSI 跌到 35 以下再回升时开多（现在 RSI ${r}）。`;
 }
+function followAge(v) { const h = v.sinceBars * 4; return h < 24 ? `${h} 小时` : `${(h / 24).toFixed(1).replace(/\.0$/, "")} 天`; }
+function followTag(v) {
+  if (v.action !== "持空中") return "";
+  const t = followAge(v);
+  if (v.sinceBars < 6) return `<span class="fol ok">开空 ${t}，可以跟进</span>`;
+  if (v.sinceBars < 12) return `<span class="fol ok">已过 ${t}，仍可跟进</span>`;
+  return `<span class="fol no">已过 ${t}，不要追空</span>`;
+}
 function followText(v) {
-  if (v.side >= 0) return "";
-  if (v.sinceBars < 6) return `<br><b class="fol ok">可以跟进</b>开空不到 1 天，历史上晚 12 小时进场平均每次 +1.5%。`;
-  if (v.sinceBars < 12) return `<br><b class="fol ok">已晚 1 天，仍可跟进</b>历史上这时候跟进 156 次，胜率 56%，平均每次 +1.1%。`;
-  return `<br><b class="fol no">不建议追</b>开空已超过 2 天，历史上晚 2 天进场平均每次只剩 +0.4%。手里有空单的继续按止损止盈拿着。`;
+  if (v.action !== "持空中") return "";
+  if (v.sinceBars < 6) return "<br>开空不到 1 天，可以按下面的仓位跟进。历史上晚 12 小时进场，平均每次 +1.5%。";
+  if (v.sinceBars < 12) return "<br>已晚 1 天，仍可跟进。历史上开空后 1～2 天跟进 156 次，胜率 56%，平均每次 +1.1%。";
+  return `<br>开空已过 ${followAge(v)}，超过 2 天就不要追空了：历史上晚 2 天进场，平均每次只剩 +0.4%。手里已有空单的，继续按止损止盈拿着。`;
 }
 function swingBox(b) {
   const v = swingFor(b);
@@ -660,7 +668,7 @@ function swingBox(b) {
   if (v.phase === "nolong") { const p = pooled(1); if (p) odds = `做多的历史：${SYMBOLS.length} 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}，没有优势，所以不做。`; }
   else if (sd) { const s = v.stats[sd > 0 ? "L" : "S"], p = pooled(sd), nm = sd > 0 ? "做多" : "做空";
     odds = s.n ? `历史胜算：${b} 用这个方法${nm} ${s.n} 次，赚 ${s.w} 次（胜率 ${s.win}%），平均每次 <b class="${dir(s.avg)}">${sgn(s.avg)}</b>${p ? `。5 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}` : ""}。` : `${b} 历史上这种${nm}机会太少，没有参考数据。`; }
-  return `<div class="sw"><div class="swtop"><span class="act ${cls}">${v.action}</span><span class="swdir">${dirLine}</span></div>
+  return `<div class="sw"><div class="swtop"><span class="act ${cls}">${v.action}</span>${followTag(v)}<span class="swdir">${dirLine}</span></div>
     <p class="vtext">${now}</p>${levels}<p class="odds">${odds}</p></div>`;
 }
 const rank = b => { const v = swingFor(b); if (!v) return 9; if (v.action === "开空") return 0; if (v.action === "平空") return 1; if (v.action === "持空中") return 2 + Math.min(v.sinceBars, 99) / 100; if (v.dir < 0) return 4 + (100 - v.rsi) / 1000; return v.dir === 0 ? 6 : 7; };
