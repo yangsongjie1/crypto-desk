@@ -380,7 +380,7 @@ const SOURCES = [
     async klines(base, tf, total) {
       const step = TF_MS[tf] / 1000, nowS = Math.floor(Date.now() / 1000), out = new Map();
       let from = nowS - total * step;
-      for (let p = 0; p < 6; p++) {
+      for (let p = 0; p < 12; p++) {
         const to = Math.min(nowS, from + 999 * step);
         const j = await getJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${base}_${QUOTE}&interval=${tf}&from=${from}&to=${to}`);
         if (!Array.isArray(j)) throw new Error(j.message || "gate error");
@@ -458,6 +458,7 @@ function compute(base, tf) {
   const slot = S.coins[base].tf[tf];
   const k = parseKlines(slot.raw, tf, Date.now());
   if (k.c.length < 260) { slot.err = `K 线只有 ${k.c.length} 根，不够计算`; return; }
+  if (k.ts[k.ts.length - 1] + 2 * TF_MS[tf] < Date.now() - TF_MS[tf]) { slot.err = "数据不完整（缺少最新 K 线），暂不给出指令"; slot.k = null; slot.res = null; return; }
   slot.k = k; slot.res = analyze(k, FEE, SLIP); slot.err = null;
 }
 async function loadAllHistory() {
