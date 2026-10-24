@@ -29,6 +29,39 @@
   "XRP": {
    "dir": -1,
    "action": "持空中"
+  },
+  "DOGE": {
+   "dir": -1,
+   "action": "持空中"
+  },
+  "ADA": {
+   "dir": 0,
+   "action": "观望"
+  },
+  "AVAX": {
+   "dir": 0,
+   "action": "观望"
+  },
+  "LINK": {
+   "dir": 1,
+   "action": "观望"
+  },
+  "LTC": {
+   "dir": 1,
+   "action": "观望"
+  },
+  "DOT": {
+   "dir": 0,
+   "action": "观望"
+  },
+  "TRX": {
+   "dir": 0,
+   "action": "观望"
+  },
+  "BCH": {
+   "dir": 0,
+   "action": "观望"
   }
- }
+ },
+ "v3": 1
 }
