@@ -125,6 +125,17 @@ nav button { flex: 1; border: 0; background: none; padding: 11px 0 12px; font-si
 nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .empty { text-align: center; color: var(--muted); padding: 40px 16px; font-size: 14px; }
 .foot { font-size: 12px; color: var(--muted); padding: 2px 4px 12px; margin: 0; }
+.sw { margin-top: 10px; }
+.swtop { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.act { font-weight: 800; font-size: 18px; padding: 4px 12px; border-radius: 8px; }
+.act.long { background: var(--up); color: #fff; }
+.act.short { background: var(--down); color: #fff; }
+.act.exit { color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.act.wait { background: var(--sunk); color: var(--muted); }
+.swdir { font-size: 13px; color: var(--muted); font-weight: 600; }
+.sw p { margin: 6px 0; font-size: 14px; }
+.odds { font-size: 13px !important; color: var(--muted); background: var(--sunk); border-radius: 8px; padding: 8px 10px; }
+.odds b.up { color: var(--up); } .odds b.down { color: var(--down); }
 </style>
 </head>
 <body>
@@ -308,7 +319,7 @@ const SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP"];
 const QUOTE = "USDT";
 const TFS = ["1d", "4h", "30m", "5m"];
 const TF_NAME = { "1d": "日线", "4h": "4小时", "30m": "30分钟", "5m": "5分钟" };
-const HISTORY = { "1d": 2000, "4h": 3000, "30m": 3000, "5m": 3000 };
+const HISTORY = { "1d": 2000, "4h": 6000, "30m": 3000, "5m": 3000 };
 const JOURNAL_DAYS = { "1d": 30, "4h": 14, "30m": 3, "5m": 1 };
 const FEE = 0.001, SLIP = 0.0005;
 const PLAIN = {
@@ -561,19 +572,91 @@ function tfChips(b) {
     return `<div class="tfc ${s ? s.st : ""}"><span>${TF_NAME[tf]}</span><b>${s ? s.word : "…"}</b></div>`;
   }).join("")}</div>`;
 }
+function swingCalc(k4, k1) {
+  const H = 14400000, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005;
+  const ema = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
+  const rsiF = (c, n) => { const L = c.length, o = new Float64Array(L).fill(50), a = 1 / n; let up = 0, dn = 0;
+    for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0);
+      if (i === 1) { up = u; dn = w; } else { up = a * u + (1 - a) * up; dn = a * w + (1 - a) * dn; } o[i] = dn === 0 ? 50 : 100 - 100 / (1 + up / dn); } return o; };
+  const c = k4.c, o = k4.o, n = c.length, e200 = ema(c, 200), r = rsiF(c, 14);
+  const c1 = k1.c, m = c1.length, d200 = ema(c1, 200), d20 = ema(c1, 20), d50 = ema(c1, 50);
+  const dir = new Int8Array(n); let j = -1;
+  for (let i = 0; i < n; i++) { const ct = k4.ts[i] + H; while (j + 1 < m && k1.ts[j + 1] + D <= ct) j++;
+    dir[i] = j < W ? 0 : c1[j] > d200[j] && d20[j] > d50[j] ? 1 : c1[j] < d200[j] && d20[j] < d50[j] ? -1 : 0; }
+  const want = new Int8Array(n); let s = 0, l = 0;
+  for (let i = 1; i < n; i++) {
+    if (!s && c[i] < e200[i] && r[i - 1] > 65 && r[i] <= 65) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
+    if (!l && c[i] > e200[i] && r[i - 1] < 35 && r[i] >= 35) l = 1; else if (l && (r[i] > 65 || c[i] < e200[i])) l = 0;
+    want[i] = i < W ? 0 : l && dir[i] === 1 ? 1 : s && dir[i] === -1 ? -1 : 0;
+  }
+  const trades = []; let side = 0, e = 0, eI = 0;
+  for (let i = W + 1; i < n; i++) { const w = want[i - 1];
+    if (side && w !== side) { const x = o[i]; trades.push({ side, r: (side > 0 ? x * (1 - SLIP) / e - 1 : 1 - x * (1 + SLIP) / e) - 2 * FEE - FUND * (i - eI) }); side = 0; }
+    if (!side && w) { side = w; e = w > 0 ? o[i] * (1 + SLIP) : o[i] * (1 - SLIP); eI = i; } }
+  const st = sd => { const t = trades.filter(x => x.side === sd); if (!t.length) return { n: 0 }; const w = t.filter(x => x.r > 0).length;
+    return { n: t.length, w, win: Math.round(100 * w / t.length), avg: 100 * t.reduce((a, x) => a + x.r, 0) / t.length }; };
+  const L = n - 1, now = want[L], prev = want[L - 1];
+  let action = "观望", entry = null, sinceBars = null, phase = null;
+  if (now && now !== prev) action = now > 0 ? "开多" : "开空";
+  else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; }
+  else if (prev) action = prev > 0 ? "平多" : "平空";
+  else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
+  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, stats: { L: st(1), S: st(-1) } };
+}
+const SW = {};
+function swingFor(b) {
+  const c4 = S.coins[b].tf["4h"], c1 = S.coins[b].tf["1d"];
+  if (!c4?.k || !c1?.k) return null;
+  const key = c4.k.ts.at(-1) + "|" + c1.k.ts.at(-1) + "|" + c4.k.c.length;
+  if (SW[b]?.key !== key) SW[b] = { key, v: swingCalc(c4.k, c1.k) };
+  return SW[b].v;
+}
+function pooled(side) {
+  let n = 0, w = 0, s = 0;
+  for (const b of SYMBOLS) { const v = swingFor(b); if (!v) continue; for (const t of v.trades) if (t.side === side) { n++; s += t.r; if (t.r > 0) w++; } }
+  return n ? { n, win: Math.round(100 * w / n), avg: 100 * s / n } : null;
+}
+const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
+function needText(v) {
+  const r = v.rsi.toFixed(0);
+  if (v.phase === "nodir") return "日线方向不明（不是明确的上升或下降趋势），这时候不做。";
+  if (v.phase === "wrongside") return v.dir < 0 ? `日线向下，但 4 小时价格还在 200 均线（${px(v.stop)}）上方，等跌回均线下方再找做空机会。` : `日线向上，但 4 小时价格还在 200 均线（${px(v.stop)}）下方，等站回均线上方再找做多机会。`;
+  if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 65 以下就会发出开空信号。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
+  return v.dir < 0 ? `等反弹：4 小时 RSI 升到 65 以上再回落时开空（现在 RSI ${r}）。` : `等回调：4 小时 RSI 跌到 35 以下再回升时开多（现在 RSI ${r}）。`;
+}
+function swingBox(b) {
+  const v = swingFor(b);
+  if (!v) return `<div class="sw"><p class="vtext">正在计算…</p></div>`;
+  const price = priceOf(b) ?? v.price;
+  const cls = { "开多": "long", "持多中": "long", "开空": "short", "持空中": "short", "平多": "exit", "平空": "exit", "观望": "wait" }[v.action];
+  const dirLine = v.dir > 0 ? "日线向上 → 只做多" : v.dir < 0 ? "日线向下 → 只做空" : "日线方向不明 → 不做";
+  const active = ["开多", "开空", "持多中", "持空中"].includes(v.action), sd = v.side || v.dir;
+  let now;
+  if (v.action === "开多" || v.action === "开空") now = `刚出现<b>${v.action}</b>信号（4 小时收盘于 ${md(v.barTs + TF_MS["4h"])}），参考进场价 ${px(price)}。`;
+  else if (active) { const g = v.side > 0 ? price / v.entry - 1 : v.entry / price - 1; now = `${ago(v.sinceBars, "4h")}在 ${px(v.entry)} ${v.side > 0 ? "开多" : "开空"}，至今 <span class="num ${dir(g)}">${pct(g)}</span>。没上车的话，现在追进去离止损更远，风险更大。`; }
+  else if (v.action === "平多" || v.action === "平空") now = `刚出现<b>${v.action}</b>信号，${v.action === "平多" ? "多单" : "空单"}应该离场。`;
+  else now = needText(v);
+  let levels = "";
+  if (active) {
+    const dist = Math.abs(v.stop - price), { capital, risk, maxAlloc } = S.prefs;
+    const qty = dist > 0 ? Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / price) : 0;
+    levels = `<p>止损：4 小时收盘价${v.side > 0 ? "跌破" : "站上"} <b class="num">${px(v.stop)}</b>（跟着 200 均线移动）</p>
+      <p>止盈：4 小时 RSI ${v.side > 0 ? "升到 65 以上" : "跌到 35 以下"}（现在 ${v.rsi.toFixed(0)}）</p>
+      ${qty ? `<p>仓位：每次最多亏本金的 ${risk}%，约 <b class="num">${qty.toPrecision(3)}</b> ${b}（≈ ${Math.round(qty * price)} U），杠杆不超过 2 倍。</p>` : ""}`;
+  }
+  let odds = "日线方向明确后，才有对应方向的历史胜算。";
+  if (sd) { const s = v.stats[sd > 0 ? "L" : "S"], p = pooled(sd), nm = sd > 0 ? "做多" : "做空";
+    odds = s.n ? `历史胜算：${b} 用这个方法${nm} ${s.n} 次，赚 ${s.w} 次（胜率 ${s.win}%），平均每次 <b class="${dir(s.avg)}">${sgn(s.avg)}</b>${p ? `。5 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}` : ""}。` : `${b} 历史上这种${nm}机会太少，没有参考数据。`; }
+  return `<div class="sw"><div class="swtop"><span class="act ${cls}">${v.action}</span><span class="swdir">${dirLine}</span></div>
+    <p class="vtext">${now}</p>${levels}<p class="odds">${odds}</p></div>`;
+}
 function overviewPage() {
-  return `${headerHTML("数字货币决策台")}${banners()}
-    ${SYMBOLS.map(b => {
-      const v = verdict(b);
-      return `<button class="card" data-coin="${b}">
-        <div class="ctop">${priceLine(b)}</div>
-        <div class="verdict ${v.level}">${v.title}</div>
-        <p class="vtext">${v.text}</p>${v.latest ? `<p class="latest">${esc(v.latest)}</p>` : ""}
-        ${tfChips(b)}
-        <span class="more">看每条规则 ›</span>
-      </button>`;
-    }).join("")}
-    <p class="foot">结论由 5 条公开的经典规则自动汇总，只用历史上靠谱的规则投票，不是投资建议。点开币种可以看每条规则在说什么。</p>`;
+  const pS = pooled(-1), pL = pooled(1), counts = {};
+  SYMBOLS.forEach(b => { const v = swingFor(b); if (v) counts[v.action] = (counts[v.action] || 0) + 1; });
+  const sum = Object.keys(counts).length ? `<div class="banner">现在：${Object.entries(counts).map(([a, n]) => `${a} ${n} 个`).join("，")}。<br>这套方法的历史：做空 ${pS ? `${pS.n} 次，胜率 ${pS.win}%，平均每次 ${sgn(pS.avg)}` : "—"}；做多 ${pL ? `${pL.n} 次，胜率 ${pL.win}%，平均每次 ${sgn(pL.avg)}` : "—"}。</div>` : "";
+  return `${headerHTML("数字货币决策台")}${banners()}${sum}
+    ${SYMBOLS.map(b => `<button class="card" data-coin="${b}"><div class="ctop">${priceLine(b)}</div>${swingBox(b)}<span class="more">看详细说明 ›</span></button>`).join("")}
+    <p class="foot">指令来自「顺大势、逆小势」：日线定方向，4 小时等反弹做空、等回调做多。历史胜算是过去约 1,000 天的模拟，已扣手续费和资金费，不代表以后一定赚。合约有杠杆，务必设止损、小仓位。</p>`;
 }
 function ruleState(s, tf, b) {
   const price = priceOf(b);
@@ -614,9 +697,9 @@ function detailPage(b) {
       <p class="hist">${ruleHistory(s)}</p></div>`).join("")}</div>`
     : `<div class="empty">${slot?.err ? esc(slot.err) : "正在拉取这个周期的数据…"}</div>`;
   return `${headerHTML("", true)}
-    <div class="ctop big">${priceLine(b)}</div>
-    <div class="box"><div class="verdict ${v.level}">${v.title}</div><p class="vtext">${v.text}</p>${v.latest ? `<p class="latest">${esc(v.latest)}</p>` : ""}</div>
-    <h2>5 条规则 × 4 个周期</h2>${matrix}
+    <div class="ctop big">${priceLine(b)}</div><div class="box">${swingBox(b)}</div>
+    <div class="box" style="display:none"><div class="verdict ${v.level}">${v.title}</div><p class="vtext">${v.text}</p>${v.latest ? `<p class="latest">${esc(v.latest)}</p>` : ""}</div>
+    <h2>参考：5 条趋势规则 × 4 个周期</h2>${matrix}
     <h2>${TF_NAME[tf]}详细说明${t ? `（收盘于 ${md(closeAt(t.last_bar, tf))}）` : ""}</h2>
     ${buy}${rules}`;
 }
@@ -689,6 +772,9 @@ function settingsPage() {
     <button class="wide" data-diag="1" ${S.testing ? "disabled" : ""}>${S.testing ? "正在检测…" : "检测所有数据源"}</button>
     <h2>常见问题</h2>
     <div class="prose">
+      <p><b>首页的指令怎么来的？</b>「顺大势、逆小势」：日线趋势向上只做多、向下只做空、不明就不做。下跌趋势里，等 4 小时价格反弹到过热（RSI 升到 65 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。上升趋势里反过来做多。</p>
+      <p><b>胜率不到一半，为什么还能赚？</b>这种做法赚的时候平均比亏的时候多，所以胜率 40% 左右也能赚钱。胜率又高又稳定赚钱的短线方法基本不存在；真正要做的是只做顺大势的一边、每次都止损、亏得少，让赚的那几次把钱赚回来。</p>
+      <p><b>做空的风险：</b>历史上最多连亏过 11 次，单次最差约 -8%（不加杠杆）。所以每次最多亏本金的 1%，杠杆不超过 2 倍。</p>
       <p><b>「买卖了 14 次」是谁的交易？</b>不是你的，也不是任何人的真实交易。是历史模拟：假设有人从几年前开始严格按这条规则自动买卖，会买卖多少次、最后赚还是亏。用来判断这条规则过去靠不靠谱。</p>
       <p><b>可信度怎么来的？</b>历史模拟里扣完手续费：赚的钱是亏的钱 1.3 倍以上 →「较可信」；1 到 1.3 倍 →「一般」；亏钱 →「历史上亏钱」；买卖少于 8 次 →「样本太少」。过去靠谱不代表以后一定赚。</p>
       <p><b>首页的结论怎么来的？</b>每个周期只让「较可信」和「一般」的规则投票，过半看多就算看多。然后看日线（大方向）和 4 小时（中期）：都看多 = 趋势向上；只有日线看多 = 回调中；只有 4 小时看多 = 反弹；都看空 = 下跌趋势；其他 = 观望。30 分钟用来判断买点时机。</p>

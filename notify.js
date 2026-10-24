@@ -164,75 +164,55 @@ const fs = require("fs");
 const KEY = (process.env.BARK_KEY || "").trim().replace(/^https?:\/\/api\.day\.app\//, "").replace(/\/.*$/, "");
 const PAGE = "https://yangsongjie1.github.io/crypto-desk/";
 const SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP"], QUOTE = "USDT";
-const TFS = ["1d", "4h", "30m"];
-const TF_NAME = { "1d": "日线", "4h": "4小时", "30m": "30分钟" };
-const HISTORY = { "1d": 2000, "4h": 3000, "30m": 3000 };
-const FEE = 0.001, SLIP = 0.0005;
-const NAME = { ema_trend: "长期趋势", donchian: "突破新高", supertrend: "趋势保护线", macd: "上涨动能", rsi_pullback: "回调买点" };
-const TITLE = { up: "趋势向上", pull: "大方向向上，短期在回调", bounce: "反弹中，大方向还没转好", down: "下跌趋势，先别买", wait: "方向不明，观望" };
-const GOOD = g => g === "回测为正" || g === "接近打平";
+const HISTORY = { "1d": 2000, "4h": 6000 };
+const STEP = { "1d": 86400000, "4h": 14400000 };
 const fmt = p => p >= 1000 ? p.toFixed(2) : p >= 10 ? p.toFixed(3) : p >= 1 ? p.toFixed(4) : p.toFixed(5);
-
+const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
 async function getJSON(url) {
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
-  try {
-    const r = await fetch(url, { signal: ctl.signal, headers: { "User-Agent": "crypto-desk" } });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
-  } finally { clearTimeout(t); }
+  try { const r = await fetch(url, { signal: ctl.signal, headers: { "User-Agent": "crypto-desk" } }); if (!r.ok) throw new Error("HTTP " + r.status); return await r.json(); }
+  finally { clearTimeout(t); }
 }
 const rows = (map, total) => [...map.values()].sort((a, b) => a[0] - b[0]).slice(-total);
 async function binanceLike(host, b, tf, total) {
-  const step = TF_MS[tf], now = Date.now(), out = new Map();
-  let start = now - total * step;
-  for (let p = 0; p < 6; p++) {
+  const out = new Map(); let start = Date.now() - total * STEP[tf];
+  for (let p = 0; p < 8; p++) {
     const j = await getJSON(`${host}/api/v3/klines?symbol=${b}${QUOTE}&interval=${tf}&startTime=${start}&limit=1000`);
-    if (!Array.isArray(j)) throw new Error("bad response");
-    if (!j.length) break;
+    if (!Array.isArray(j)) throw new Error("bad response"); if (!j.length) break;
     for (const r of j) out.set(r[0], [r[0], +r[1], +r[2], +r[3], +r[4]]);
-    if (j.length < 1000) break;
-    start = j[j.length - 1][0] + 1;
+    if (j.length < 1000) break; start = j[j.length - 1][0] + 1;
   }
   return rows(out, total);
 }
 const SOURCES = [
   { name: "Bybit", async klines(b, tf, total) {
-      const iv = { "1d": "D", "4h": "240", "30m": "30" }[tf], lim = Math.min(1000, total), out = new Map();
-      let end = Date.now();
-      for (let p = 0; p < 6 && out.size < total; p++) {
-        const j = await getJSON(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${b}${QUOTE}&interval=${iv}&end=${end}&limit=${lim}`);
-        if (j.retCode !== 0) throw new Error(j.retMsg);
-        const list = j.result.list;
-        if (!list.length) break;
+      const iv = { "1d": "D", "4h": "240" }[tf], out = new Map(); let end = Date.now();
+      for (let p = 0; p < 8 && out.size < total; p++) {
+        const j = await getJSON(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${b}${QUOTE}&interval=${iv}&end=${end}&limit=1000`);
+        if (j.retCode !== 0) throw new Error(j.retMsg); const list = j.result.list; if (!list.length) break;
         for (const r of list) out.set(+r[0], [+r[0], +r[1], +r[2], +r[3], +r[4]]);
-        if (list.length < lim) break;
-        end = +list[list.length - 1][0] - 1;
+        if (list.length < 1000) break; end = +list[list.length - 1][0] - 1;
       }
       return rows(out, total);
     } },
   { name: "OKX", async klines(b, tf, total) {
-      const bar = { "1d": "1Dutc", "4h": "4H", "30m": "30m" }[tf], out = new Map();
-      let after = "";
-      for (let p = 0; p < 31 && out.size < total; p++) {
+      const bar = { "1d": "1Dutc", "4h": "4H" }[tf], out = new Map(); let after = "";
+      for (let p = 0; p < Math.ceil(total / 100) + 2 && out.size < total; p++) {
         const j = await getJSON(`https://www.okx.com/api/v5/market/history-candles?instId=${b}-${QUOTE}&bar=${bar}&limit=100${after ? "&after=" + after : ""}`);
-        if (j.code !== "0") throw new Error(j.msg);
-        if (!j.data.length) break;
+        if (j.code !== "0") throw new Error(j.msg); if (!j.data.length) break;
         for (const r of j.data) out.set(+r[0], [+r[0], +r[1], +r[2], +r[3], +r[4]]);
-        after = j.data[j.data.length - 1][0];
-        if (j.data.length < 100) break;
+        after = j.data[j.data.length - 1][0]; if (j.data.length < 100) break;
       }
       return rows(out, total);
     } },
   { name: "Gate", async klines(b, tf, total) {
-      const step = TF_MS[tf] / 1000, nowS = Math.floor(Date.now() / 1000), out = new Map();
-      let from = nowS - total * step;
-      for (let p = 0; p < 6; p++) {
+      const step = STEP[tf] / 1000, nowS = Math.floor(Date.now() / 1000), out = new Map(); let from = nowS - total * step;
+      for (let p = 0; p < 8; p++) {
         const to = Math.min(nowS, from + 999 * step);
         const j = await getJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${b}_${QUOTE}&interval=${tf}&from=${from}&to=${to}`);
         if (!Array.isArray(j)) throw new Error(j.message || "gate error");
         for (const r of j) { const t = +r[0] * 1000; out.set(t, [t, +r[5], +r[3], +r[4], +r[2]]); }
-        if (to >= nowS) break;
-        from = to + 1;
+        if (to >= nowS) break; from = to + 1;
       }
       return rows(out, total);
     } },
@@ -241,84 +221,87 @@ const SOURCES = [
 ];
 let preferred = 0;
 async function klines(b, tf) {
-  const order = [preferred, ...SOURCES.map((_, i) => i).filter(i => i !== preferred)];
-  const errs = [];
+  const order = [preferred, ...SOURCES.map((_, i) => i).filter(i => i !== preferred)], errs = [];
   for (const i of order) {
-    try {
-      const r = await SOURCES[i].klines(b, tf, HISTORY[tf]);
-      if (r.length < 260) throw new Error("only " + r.length + " bars");
-      preferred = i;
-      return [r, SOURCES[i].name];
-    } catch (e) { errs.push(SOURCES[i].name + ": " + e.message); }
+    try { const r = await SOURCES[i].klines(b, tf, HISTORY[tf]); if (r.length < 400) throw new Error("only " + r.length + " bars"); preferred = i; return [r, SOURCES[i].name]; }
+    catch (e) { errs.push(SOURCES[i].name + ": " + e.message); }
   }
   throw new Error(errs.join("; "));
 }
 function toK(arr, tf) {
-  const now = Date.now(), r = arr.filter(x => x[0] + TF_MS[tf] <= now);
-  const k = { ts: r.map(x => x[0]) };
+  const now = Date.now(), r = arr.filter(x => x[0] + STEP[tf] <= now), k = { ts: r.map(x => x[0]) };
   ["o", "h", "l", "c"].forEach((f, i) => { k[f] = Float64Array.from(r, x => x[i + 1]); });
   return k;
 }
-function stance(res) {
-  const pool = res.strategies.filter(s => GOOD(s.grade));
-  if (!pool.length) return "none";
-  const long = pool.filter(s => s.long).length, bear = pool.filter(s => s.action === "avoid").length, n = pool.length;
-  return long * 2 > n ? "up" : bear * 2 > n ? "down" : long * 2 === n ? "mixed" : "flat";
-}
-function verdict(d, h) {
-  if (d === "up" && h === "up") return "up";
-  if (d === "up") return "pull";
-  if (h === "up") return "bounce";
-  if (d === "down" && h === "down") return "down";
-  return "wait";
+function swingCalc(k4, k1) {
+  const H = 14400000, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005;
+  const ema = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
+  const rsiF = (c, n) => { const L = c.length, o = new Float64Array(L).fill(50), a = 1 / n; let up = 0, dn = 0;
+    for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0);
+      if (i === 1) { up = u; dn = w; } else { up = a * u + (1 - a) * up; dn = a * w + (1 - a) * dn; } o[i] = dn === 0 ? 50 : 100 - 100 / (1 + up / dn); } return o; };
+  const c = k4.c, o = k4.o, n = c.length, e200 = ema(c, 200), r = rsiF(c, 14);
+  const c1 = k1.c, m = c1.length, d200 = ema(c1, 200), d20 = ema(c1, 20), d50 = ema(c1, 50);
+  const dir = new Int8Array(n); let j = -1;
+  for (let i = 0; i < n; i++) { const ct = k4.ts[i] + H; while (j + 1 < m && k1.ts[j + 1] + D <= ct) j++;
+    dir[i] = j < W ? 0 : c1[j] > d200[j] && d20[j] > d50[j] ? 1 : c1[j] < d200[j] && d20[j] < d50[j] ? -1 : 0; }
+  const want = new Int8Array(n); let s = 0, l = 0;
+  for (let i = 1; i < n; i++) {
+    if (!s && c[i] < e200[i] && r[i - 1] > 65 && r[i] <= 65) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
+    if (!l && c[i] > e200[i] && r[i - 1] < 35 && r[i] >= 35) l = 1; else if (l && (r[i] > 65 || c[i] < e200[i])) l = 0;
+    want[i] = i < W ? 0 : l && dir[i] === 1 ? 1 : s && dir[i] === -1 ? -1 : 0;
+  }
+  const trades = []; let side = 0, e = 0, eI = 0;
+  for (let i = W + 1; i < n; i++) { const w = want[i - 1];
+    if (side && w !== side) { const x = o[i]; trades.push({ side, r: (side > 0 ? x * (1 - SLIP) / e - 1 : 1 - x * (1 + SLIP) / e) - 2 * FEE - FUND * (i - eI) }); side = 0; }
+    if (!side && w) { side = w; e = w > 0 ? o[i] * (1 + SLIP) : o[i] * (1 - SLIP); eI = i; } }
+  const st = sd => { const t = trades.filter(x => x.side === sd); if (!t.length) return { n: 0 }; const w = t.filter(x => x.r > 0).length;
+    return { n: t.length, w, win: Math.round(100 * w / t.length), avg: 100 * t.reduce((a, x) => a + x.r, 0) / t.length }; };
+  const L = n - 1, now = want[L], prev = want[L - 1];
+  let action = "观望", entry = null, sinceBars = null, phase = null;
+  if (now && now !== prev) action = now > 0 ? "开多" : "开空";
+  else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; }
+  else if (prev) action = prev > 0 ? "平多" : "平空";
+  else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
+  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, stats: { L: st(1), S: st(-1) } };
 }
 async function push(title, body, important) {
   if (!KEY) { console.log("  [试运行，不推送]", title, "|", body); return; }
   const url = `https://api.day.app/${KEY}/${encodeURIComponent(title)}/${encodeURIComponent(body)}?group=${encodeURIComponent("决策台")}&url=${encodeURIComponent(PAGE)}${important ? "&level=timeSensitive" : ""}`;
   try { const r = await fetch(url); console.log("  推送", r.status, title); } catch (e) { console.log("  推送失败", title, e.message); }
 }
-
 (async () => {
   let state = {};
   try { state = JSON.parse(fs.readFileSync("state.json", "utf8")); } catch (e) {}
-  const first = !state.verdict;
-  state.verdict = state.verdict || {};
-  const sent = new Set(state.sent || []);
-  const events = [], summary = [], used = new Set();
+  const first = !state.swing;
+  state.swing = state.swing || {};
+  const sent = new Set(state.sent || []), events = [], summary = [], used = new Set();
+  const dn = d => d > 0 ? "向上（只做多）" : d < 0 ? "向下（只做空）" : "不明（不做）";
   for (const b of SYMBOLS) {
-    const R = {};
-    for (const tf of TFS) {
-      try { const [r, src] = await klines(b, tf); used.add(src); R[tf] = analyze(toK(r, tf), FEE, SLIP); }
-      catch (e) { console.log(b, tf, "拉取失败：", e.message); }
+    let v;
+    try { const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h"); used.add(s1); used.add(s4); v = swingCalc(toK(r4, "4h"), toK(r1, "1d")); }
+    catch (e) { console.log(b, "拉取失败：", e.message); continue; }
+    summary.push(`${b} ${fmt(v.price)}：${v.action}，日线${dn(v.dir)}`);
+    const prev = state.swing[b];
+    if (!first && prev && prev.dir !== v.dir)
+      events.push({ important: true, title: `${b} 日线方向变为${dn(v.dir)}`, body: `现在${v.dir > 0 ? "只找做多机会" : v.dir < 0 ? "只找做空机会" : "不做"}。现价 ${fmt(v.price)}。点开看详情。` });
+    if (["开多", "开空", "平多", "平空"].includes(v.action)) {
+      const key = `${b}|swing|${v.barTs}|${v.action}`;
+      if (!sent.has(key)) { sent.add(key);
+        if (!first) {
+          const sd = v.action === "开多" ? 1 : v.action === "开空" ? -1 : 0, s = sd ? v.stats[sd > 0 ? "L" : "S"] : null;
+          const body = sd
+            ? `参考价 ${fmt(v.price)}。止损：4小时收盘${sd > 0 ? "跌破" : "站上"} ${fmt(v.stop)}。止盈：4小时 RSI ${sd > 0 ? "升到 65 以上" : "跌到 35 以下"}。${s && s.n ? `历史上这样做 ${s.n} 次，胜率 ${s.win}%，平均每次 ${sgn(s.avg)}。` : ""}每次最多亏本金 1%，杠杆不超过 2 倍。`
+            : `${v.action === "平多" ? "多单" : "空单"}离场信号。现价 ${fmt(v.price)}。`;
+          events.push({ important: true, title: `${b} ${v.action}`, body });
+        } }
     }
-    if (!R["1d"] || !R["4h"]) continue;
-    const d = stance(R["1d"]), h = stance(R["4h"]), v = verdict(d, h);
-    const price = (R["30m"] || R["4h"]).last_close;
-    summary.push(`${b} ${fmt(price)}：${TITLE[v]}`);
-    const prev = state.verdict[b];
-    if (!first && prev && prev !== v)
-      events.push({ important: true, title: `${b}：${TITLE[v]}`, body: `综合结论从「${TITLE[prev]}」变为「${TITLE[v]}」。现价 ${fmt(price)}。点开看详情。` });
-    state.verdict[b] = v;
-    for (const tf of TFS) {
-      const res = R[tf]; if (!res) continue;
-      for (const s of res.strategies) {
-        if ((s.action !== "buy" && s.action !== "sell") || !GOOD(s.grade)) continue;
-        if (tf === "30m" && (s.action !== "buy" || d !== "up")) continue;
-        const key = `${b}|${tf}|${s.id}|${res.last_bar}|${s.action}`;
-        if (sent.has(key)) continue;
-        sent.add(key);
-        if (first) continue;
-        const act = s.action === "buy" ? "买入" : "卖出";
-        events.push({ important: tf !== "30m", title: `${b} ${TF_NAME[tf]}${act}信号`,
-          body: `「${NAME[s.id]}」（可信度：${s.grade === "回测为正" ? "较可信" : "一般"}）在 ${fmt(res.last_close)} 发出${act}信号。综合结论：${TITLE[v]}。${tf === "30m" ? "日线看多，这是短线买点。" : ""}` });
-      }
-    }
+    state.swing[b] = { dir: v.dir, action: v.action };
   }
   console.log("数据源：", [...used].join("、") || "全部失败");
   console.log(summary.join("\n"));
   if (!summary.length) { process.exitCode = 1; return; }
-  if (first) await push("盯盘已启动", "当前结论：\n" + summary.join("\n"), false);
-  if (events.length > 6) await push(`${events.length} 条新信号`, events.map(e => e.title).join("\n"), true);
+  if (first) await push("盯盘已升级：多空指令", summary.join("\n"), false);
+  if (events.length > 6) await push(`${events.length} 条新提醒`, events.map(e => e.title).join("\n"), true);
   else for (const e of events) await push(e.title, e.body, e.important);
   if (!KEY) { console.log("没有设置 BARK_KEY：这次只是试运行，不保存状态。"); return; }
   state.sent = [...sent].slice(-300);
