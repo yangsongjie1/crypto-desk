@@ -136,6 +136,8 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .sw p { margin: 6px 0; font-size: 14px; }
 .odds { font-size: 13px !important; color: var(--muted); background: var(--sunk); border-radius: 8px; padding: 8px 10px; }
 .odds b.up { color: var(--up); } .odds b.down { color: var(--down); }
+.fol { display: inline-block; margin: 4px 8px 0 0; padding: 1px 8px; border-radius: 6px; font-size: 13px; }
+.fol.ok { background: var(--down); color: #fff; } .fol.no { background: var(--sunk); color: var(--muted); }
 .oldbtn { display: block; width: 100%; margin: 16px 0 8px; border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 10px; font-size: 13px; cursor: pointer; }
 </style>
 </head>
@@ -626,6 +628,12 @@ function needText(v) {
   if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 65 以下就会发出开空信号。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
   return v.dir < 0 ? `等反弹：4 小时 RSI 升到 65 以上再回落时开空（现在 RSI ${r}）。` : `等回调：4 小时 RSI 跌到 35 以下再回升时开多（现在 RSI ${r}）。`;
 }
+function followText(v) {
+  if (v.side >= 0) return "";
+  if (v.sinceBars < 6) return `<br><b class="fol ok">可以跟进</b>开空不到 1 天，历史上晚 12 小时进场平均每次 +1.5%。`;
+  if (v.sinceBars < 12) return `<br><b class="fol ok">已晚 1 天，仍可跟进</b>历史上这时候跟进 156 次，胜率 56%，平均每次 +1.1%。`;
+  return `<br><b class="fol no">不建议追</b>开空已超过 2 天，历史上晚 2 天进场平均每次只剩 +0.4%。手里有空单的继续按止损止盈拿着。`;
+}
 function swingBox(b) {
   const v = swingFor(b);
   if (!v) return `<div class="sw"><p class="vtext">正在计算…</p></div>`;
@@ -635,7 +643,7 @@ function swingBox(b) {
   const active = ["开多", "开空", "持多中", "持空中"].includes(v.action), sd = v.side || v.dir;
   let now;
   if (v.action === "开多" || v.action === "开空") now = `刚出现<b>${v.action}</b>信号（4 小时收盘于 ${md(v.barTs + TF_MS["4h"])}），参考进场价 ${px(price)}。`;
-  else if (active) { const g = v.side > 0 ? price / v.entry - 1 : v.entry / price - 1; now = `${ago(v.sinceBars, "4h")}在 ${px(v.entry)} ${v.side > 0 ? "开多" : "开空"}，至今 <span class="num ${dir(g)}">${pct(g)}</span>。没上车的话，现在追进去离止损更远，风险更大。`; }
+  else if (active) { const g = v.side > 0 ? price / v.entry - 1 : v.entry / price - 1; now = `${ago(v.sinceBars, "4h")}在 ${px(v.entry)} ${v.side > 0 ? "开多" : "开空"}，至今 <span class="num ${dir(g)}">${pct(g)}</span>。${followText(v)}`; }
   else if (v.action === "平多" || v.action === "平空") now = `刚出现<b>${v.action}</b>信号，${v.action === "平多" ? "多单" : "空单"}应该离场。`;
   else now = needText(v);
   let levels = "";
@@ -653,7 +661,7 @@ function swingBox(b) {
   return `<div class="sw"><div class="swtop"><span class="act ${cls}">${v.action}</span><span class="swdir">${dirLine}</span></div>
     <p class="vtext">${now}</p>${levels}<p class="odds">${odds}</p></div>`;
 }
-const rank = b => { const v = swingFor(b); return !v ? 9 : ({ "开空": 0, "平空": 1, "持空中": 2 }[v.action] ?? (v.dir < 0 ? 3 : 5)); };
+const rank = b => { const v = swingFor(b); if (!v) return 9; if (v.action === "开空") return 0; if (v.action === "平空") return 1; if (v.action === "持空中") return 2 + Math.min(v.sinceBars, 99) / 100; if (v.dir < 0) return 4 + (100 - v.rsi) / 1000; return v.dir === 0 ? 6 : 7; };
 function overviewPage() {
   const pS = pooled(-1), pL = pooled(1), counts = {};
   SYMBOLS.forEach(b => { const v = swingFor(b); if (v) counts[v.action] = (counts[v.action] || 0) + 1; });
@@ -778,6 +786,7 @@ function settingsPage() {
     <div class="prose">
       <p><b>首页的指令怎么来的？</b>「顺大势、逆小势」：日线趋势向上只做多、向下只做空、不明就不做。下跌趋势里，等 4 小时价格反弹到过热（RSI 升到 65 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。上升趋势里反过来做多。</p>
       <p><b>为什么只提示做空？</b>在 13 个币、约 1,000 天的检验里，这套方法做空平均每次约 +1.1%，做多平均每次约 -0.4%。做多没有优势，所以只在日线向下时提示做空。日线向上时也不要逆势做空：那种时候做空，历史上 5 次有 4 次亏。</p>
+      <p><b>开空信号出来后，多久还能跟进？</b>2 天内都可以。历史上开空后 1～2 天才跟进，胜率 56%，平均每次 +1.1%，和准时进场差不多；超过 2 天平均只剩 +0.4%，就不建议追了。满 1 天时会推送“跟进提示”。</p>
       <p><b>胜率不到一半，为什么还能赚？</b>这种做法赚的时候平均比亏的时候多，所以胜率 40% 左右也能赚钱。胜率又高又稳定赚钱的短线方法基本不存在；真正要做的是只做顺大势的一边、每次都止损、亏得少，让赚的那几次把钱赚回来。</p>
       <p><b>做空的风险：</b>历史上最多连亏过 11 次，单次最差约 -8%（不加杠杆）。所以每次最多亏本金的 1%，杠杆不超过 2 倍。</p>
       <p><b>「买卖了 14 次」是谁的交易？</b>不是你的，也不是任何人的真实交易。是历史模拟：假设有人从几年前开始严格按这条规则自动买卖，会买卖多少次、最后赚还是亏。用来判断这条规则过去靠不靠谱。</p>

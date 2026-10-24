@@ -295,6 +295,12 @@ async function push(title, body, important) {
           events.push({ important: true, title: `${b} ${v.action}`, body });
         } }
     }
+    if (v.action === "持空中" && v.sinceBars >= 6 && v.sinceBars < 12) {
+      const key = `${b}|follow|${v.barTs - v.sinceBars * 14400000}`;
+      if (!sent.has(key)) { sent.add(key);
+        if (!first) { const fell = (1 - v.price / v.entry) * 100, sd = (v.stop / v.price - 1) * 100;
+          events.push({ important: true, title: `${b} 跟进提示：开空已满 1 天`, body: `${(v.sinceBars * 4 / 24).toFixed(1)} 天前在 ${fmt(v.entry)} 开空，现价 ${fmt(v.price)}（${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell).toFixed(1)}%）。历史上这时候跟进：胜率 56%，平均每次 +1.1%。止损：4小时收盘站上 ${fmt(v.stop)}（距现价 ${sd.toFixed(1)}%）；止盈：RSI 跌到 35 以下。按每次最多亏本金 1% 算仓位，杠杆不超过 2 倍。` }); } }
+    }
     state.swing[b] = { dir: v.dir, action: v.action };
   }
   console.log("数据源：", [...used].join("、") || "全部失败");
