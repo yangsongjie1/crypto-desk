@@ -139,6 +139,9 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .fol { display: inline-block; padding: 3px 10px; border-radius: 8px; font-size: 14px; font-weight: 700; }
 .fol.ok { background: var(--down); color: #fff; } .fol.no { background: var(--sunk); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--idle); }
 .oldbtn { display: block; width: 100%; margin: 16px 0 8px; border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 10px; font-size: 13px; cursor: pointer; }
+.chip.open { background: var(--accent); color: #fff; } .chip.win { background: var(--up); color: #fff; } .chip.loss { background: var(--down); color: #fff; }
+.chip.ddown { background: var(--down); color: #fff; } .chip.dup { color: var(--up); box-shadow: inset 0 0 0 1px var(--up); } .chip.dnone { background: var(--sunk); color: var(--muted); }
+.dgrid { margin-bottom: 4px; } .dgrid .tfc span { font-family: var(--num); font-weight: 700; color: var(--ink); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -403,7 +406,7 @@ const load = (k, d) => { try { const v = localStorage.getItem("desk:" + k); retu
 const save = (k, v) => { try { localStorage.setItem("desk:" + k, JSON.stringify(v)); } catch (e) {} };
 const S = {
   tab: load("tab", "signals"), tf: TFS.includes(load("tf", "1d")) ? load("tf", "1d") : "1d", view: null,
-  jfilter: load("jfilter", "all"),
+  jfilter: load("jfilter", "all"), jtf: load("jtf", "4h"),
   prefs: Object.assign({ capital: 1000, risk: 1, maxAlloc: 40, colors: "cn" }, load("prefs", {})),
   follow: load("follow", {}),
   src: null, srcOk: false, srcError: null, lastOk: 0,
@@ -594,10 +597,15 @@ function swingCalc(k4, k1) {
     if (!l && c[i] > e200[i] && r[i - 1] < 35 && r[i] >= 35) l = 1; else if (l && (r[i] > 65 || c[i] < e200[i])) l = 0;
     want[i] = i < W ? 0 : l && dir[i] === 1 ? 1 : s && dir[i] === -1 ? -1 : 0;
   }
-  const trades = []; let side = 0, e = 0, eI = 0;
+  const why = i => r[i] < 35 ? "tp" : c[i] > e200[i] ? "sl" : "dir";
+  const trades = []; let side = 0, e = 0, eI = 0, open = null;
   for (let i = W + 1; i < n; i++) { const w = want[i - 1];
-    if (side && w !== side) { const x = o[i]; trades.push({ side, r: (side > 0 ? x * (1 - SLIP) / e - 1 : 1 - x * (1 + SLIP) / e) - 2 * FEE - FUND * (i - eI) }); side = 0; }
+    if (side && w !== side) { const x = o[i]; trades.push({ side, r: (side > 0 ? x * (1 - SLIP) / e - 1 : 1 - x * (1 + SLIP) / e) - 2 * FEE - FUND * (i - eI), t0: k4.ts[eI], t1: k4.ts[i], p0: e, p1: x * (side > 0 ? 1 - SLIP : 1 + SLIP), bars: i - eI, why: why(i - 1) }); side = 0; }
     if (!side && w) { side = w; e = w > 0 ? o[i] * (1 + SLIP) : o[i] * (1 - SLIP); eI = i; } }
+  if (side) open = { side, t0: k4.ts[eI], p0: e, bars: n - eI };
+  else if (want[n - 1]) open = { side: want[n - 1], t0: k4.ts[n - 1] + H, p0: c[n - 1], bars: 0 };
+  const ddir = new Int8Array(m);
+  for (let q = 0; q < m; q++) ddir[q] = q < W ? 0 : c1[q] > d200[q] && d20[q] > d50[q] ? 1 : c1[q] < d200[q] && d20[q] < d50[q] ? -1 : 0;
   const st = sd => { const t = trades.filter(x => x.side === sd); if (!t.length) return { n: 0 }; const w = t.filter(x => x.r > 0).length;
     return { n: t.length, w, win: Math.round(100 * w / t.length), avg: 100 * t.reduce((a, x) => a + x.r, 0) / t.length }; };
   const L = n - 1, now = want[L], prev = want[L - 1];
@@ -606,7 +614,7 @@ function swingCalc(k4, k1) {
   else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; }
   else if (prev) action = prev > 0 ? "平多" : "平空";
   else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
-  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, stats: { L: st(1), S: st(-1) } };
+  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, open, ddir, stats: { L: st(1), S: st(-1) } };
 }
 const SW = {};
 function swingFor(b) {
@@ -725,57 +733,90 @@ function detailPage(b) {
     <h2>${TF_NAME[tf]}详细说明${t ? `（收盘于 ${md(closeAt(t.last_bar, tf))}）` : ""}</h2>
     ${buy}${rules}` : ""}`;
 }
-function tfSeg() {
-  return `<div class="seg" role="group" aria-label="周期">${TFS.map(tf => `<button data-tf="${tf}" aria-pressed="${tf === S.tf}">${TF_NAME[tf]}</button>`).join("")}</div>`;
-}
-function journalRows(tf) {
-  const out = [], cut = Date.now() - JOURNAL_DAYS[tf] * 86400000;
+const JDAYS = { "4h": 30, "1d": 180 };
+const WHY = { tp: "止盈：4 小时 RSI 跌到 35 以下", sl: "止损：4 小时收盘站上 200 均线", dir: "日线不再向下，离场" };
+const dur = bars => { const h = bars * 4; return h < 24 ? `${h} 小时` : `${(h / 24).toFixed(1).replace(/\.0$/, "")} 天`; };
+const DIRW = { "-1": "向下", "0": "不明", "1": "向上" }, DIRC = { "-1": "down", "0": "none", "1": "up" };
+function shortTrades() {
+  const out = [], cut = Date.now() - JDAYS["4h"] * 86400000;
   for (const b of SYMBOLS) {
-    const slot = S.coins[b].tf[tf]; if (!slot?.res) continue;
-    const { k, res } = slot, n = k.c.length, cur = priceOf(b) ?? k.c[n - 1];
-    for (const s of res.strategies) {
-      const pos = s.pos;
-      for (let i = WARMUP + 1; i < n; i++) {
-        if (pos[i] === pos[i - 1] || closeAt(k.ts[i], tf) < cut) continue;
-        const row = { key: `${b}|${tf}|${s.id}|${k.ts[i]}`, base: b, sid: s.id, grade: s.grade,
-          action: pos[i] ? "buy" : "sell", at: closeAt(k.ts[i], tf), price: k.c[i] };
-        if (pos[i]) {
-          let j = i + 1; while (j < n && pos[j]) j++;
-          if (j < n) { row.exitAt = closeAt(k.ts[j], tf); row.ret = k.c[j] / k.c[i] * (1 - FEE) ** 2 - 1; }
-          else row.ret = cur / k.c[i] - 1;
-        } else row.ret = cur / k.c[i] - 1;
-        out.push(row);
-      }
+    const v = swingFor(b); if (!v) continue;
+    for (const t of v.trades) if (t.side < 0 && t.t1 >= cut) out.push({ ...t, base: b, key: `${b}|short|${t.t0}` });
+    if (v.open && v.open.side < 0) {
+      const cur = priceOf(b) ?? v.price, ret = 1 - cur / v.open.p0 - 2 * FEE;
+      out.push({ ...v.open, base: b, key: `${b}|short|${v.open.t0}`, live: true, ret, cur, stop: v.stop, rsi: v.rsi, since: v.sinceBars ?? 0 });
     }
   }
-  return out.sort((x, y) => y.at - x.at);
+  return out.sort((x, y) => (!!y.live - !!x.live) || (y.t0 - x.t0));
+}
+function tradeCard(t) {
+  const f = S.follow[t.key], r = t.live ? t.ret : t.r;
+  const chip = t.live ? `<span class="chip open">持仓中</span>` : `<span class="chip ${r > 0 ? "win" : "loss"}">${r > 0 ? "赚" : "亏"} ${pct(r, 1)}</span>`;
+  const lines = t.live
+    ? `<div>至今 <span class="num ${dir(r)}">${pct(r, 2)}</span>（已扣手续费），持有 ${dur(t.since)}${t.since >= 12 ? "，超过 2 天，没跟的别再追" : t.since >= 6 ? "，还能跟进" : "，可以跟进"}</div>
+       <div class="when">止损：4 小时收盘站上 <span class="num">${px(t.stop)}</span>　止盈：RSI 跌到 35 以下（现在 ${t.rsi.toFixed(0)}）</div>`
+    : `<div class="when">平空 ${md(t.t1)}　<span class="num">${px(t.p1)}</span>　${WHY[t.why]}</div>
+       <div>这笔 <span class="num ${dir(r)}">${pct(r, 2)}</span>（含手续费和资金费），持有 ${dur(t.bars)}</div>`;
+  return `<div class="entry">
+    <div class="srow"><span class="sname">${t.base} 空单</span>${chip}</div>
+    <div class="when">开空 ${md(t.t0)}　<span class="num">${px(t.p0)}</span></div>
+    ${lines}
+    <div class="follow"><button data-follow="${t.key}" data-v="1" aria-pressed="${f === 1}">我跟了</button><button data-follow="${t.key}" data-v="0" aria-pressed="${f === 0}">没跟</button></div>
+  </div>`;
+}
+function shortPage() {
+  const all = shortTrades();
+  const rows = S.jfilter === "mine" ? all.filter(t => S.follow[t.key] === 1) : all;
+  const closed = rows.filter(t => !t.live), won = closed.filter(t => t.r > 0).length, live = rows.length - closed.length;
+  const avg = closed.length ? closed.reduce((a, t) => a + t.r, 0) / closed.length : null;
+  const mine = all.filter(t => S.follow[t.key] === 1 && !t.live), mineSum = mine.reduce((a, t) => a + t.r, 0);
+  const p = pooled(-1);
+  const seg2 = `<div class="seg" role="group" aria-label="筛选"><button data-jf="all" aria-pressed="${S.jfilter !== "mine"}">全部空单</button><button data-jf="mine" aria-pressed="${S.jfilter === "mine"}">只看我跟了的</button></div>`;
+  const score = `<div class="score"><div><b class="num">${rows.length}</b><span>笔空单${live ? `（${live} 笔持仓中）` : ""}</span></div>
+    <div><b class="num">${closed.length ? `${won}/${closed.length}` : "—"}</b><span>已平仓里赚的</span></div>
+    <div><b class="num ${avg == null ? "" : dir(avg)}">${avg == null ? "—" : pct(avg, 1)}</b><span>平均每笔</span></div></div>`;
+  const ref = p || mine.length ? `<div class="banner">${p ? `对照：这套方法过去约 1,000 天做空 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}。${p.win < 50 ? "胜率不到一半是正常的，靠赚的几笔比亏的大。" : ""}最近这段明显比它差，就要警惕规则失灵。` : ""}${mine.length ? `<br>你跟了 ${mine.length} 笔已平仓，合计 <b class="${dir(mineSum)}">${pct(mineSum, 1)}</b>（按每笔等额算）。` : ""}</div>` : "";
+  const body = rows.length ? `${score}${ref}<div class="log">${rows.map(tradeCard).join("")}</div>`
+    : `<div class="empty">${S.jfilter === "mine" ? "还没有标记「我跟了」的空单。" : `最近 ${JDAYS["4h"]} 天没有做空信号。日线向下的币，要等 4 小时反弹过热再回落才会开空。`}</div>`;
+  return `<p class="intro">做空系统最近 ${JDAYS["4h"]} 天的每一笔空单：什么时候开空、什么时候平空、为什么平、赚亏多少。推送里的「开空」「平空」就是这里的同一批信号。你真的下单了，就点「我跟了」。</p>${seg2}${body}`;
+}
+function dailyPage() {
+  const cut = Date.now() - JDAYS["1d"] * 86400000, ev = [];
+  const now = SYMBOLS.map(b => { const v = swingFor(b); return v ? `<div class="tfc ${DIRC[v.dir]}"><span>${b}</span><b>${DIRW[v.dir]}</b></div>` : `<div class="tfc"><span>${b}</span><b>…</b></div>`; }).join("");
+  for (const b of SYMBOLS) {
+    const v = swingFor(b), k1 = S.coins[b].tf["1d"]?.k; if (!v || !k1) continue;
+    const d = v.ddir, m = k1.c.length, cur = priceOf(b) ?? k1.c[m - 1];
+    for (let j = WARMUP + 1; j < m; j++) {
+      if (d[j] === d[j - 1]) continue;
+      const at = k1.ts[j] + TF_MS["1d"]; if (at < cut) continue;
+      let q = j + 1; while (q < m && d[q] === d[j]) q++;
+      const end = q < m ? k1.ts[q] + TF_MS["1d"] : null, endPx = q < m ? k1.c[q] : cur, chg = endPx / k1.c[j] - 1;
+      const tr = v.trades.filter(t => t.side < 0 && t.t0 >= at && (!end || t.t0 < end));
+      if (v.open && v.open.side < 0 && v.open.t0 >= at && !end) tr.push({ r: 1 - cur / v.open.p0 - 2 * FEE, live: 1 });
+      ev.push({ b, at, dir: d[j], price: k1.c[j], end, chg, tr });
+    }
+  }
+  ev.sort((x, y) => y.at - x.at);
+  const act = { "-1": "开始只找做空机会", "0": "不做，已有空单按规则离场", "1": "不做（做多没优势，也别逆势做空）" };
+  const list = ev.length ? `<div class="log">${ev.map(e => {
+    const s = e.tr.reduce((a, t) => a + t.r, 0);
+    const right = e.dir < 0 ? e.chg < 0 : e.dir > 0 ? e.chg > 0 : null;
+    return `<div class="entry">
+      <div class="srow"><span class="sname">${e.b} 日线转为${DIRW[e.dir]}</span><span class="chip d${DIRC[e.dir]}">${DIRW[e.dir]}</span></div>
+      <div class="when">${md(e.at)} 收盘　<span class="num">${px(e.price)}</span>　→ ${act[e.dir]}</div>
+      <div>${e.end ? `持续到 ${md(e.end)}，` : "至今仍是这个方向，"}期间价格 <span class="num ${dir(e.chg)}">${pct(e.chg, 1)}</span>${right == null ? "" : right ? "，方向判断对了" : "，方向判断错了"}</div>
+      ${e.dir < 0 ? `<div class="when">这段时间做空 ${e.tr.length} 笔${e.tr.length ? `，合计 <span class="num ${dir(s)}">${pct(s, 1)}</span>${e.tr.some(t => t.live) ? "（含持仓中）" : ""}` : (e.end ? "（这段时间没出现 4 小时开空时机）" : "（还没等到 4 小时开空时机）")}</div>` : ""}
+    </div>`; }).join("")}</div>` : `<div class="empty">最近 ${JDAYS["1d"]} 天没有币的日线方向变化。</div>`;
+  return `<p class="intro">日线决定能不能做空：只有日线「向下」的币，4 小时才会发开空信号。下面是每个币现在的日线方向，以及最近 ${JDAYS["1d"]} 天的方向变化。日线每天早上 8 点（菲律宾时间）收盘后更新。</p>
+    <h2>现在的日线方向</h2><div class="tfs dgrid">${now}</div>
+    <h2>方向变化记录</h2>${list}`;
 }
 function journalPage() {
-  let rows = journalRows(S.tf);
-  if (S.jfilter === "pos") rows = rows.filter(r => GRADE_LEVEL[r.grade] >= 2);
-  const closed = rows.filter(r => r.action === "buy" && r.exitAt);
-  const won = closed.filter(r => r.ret > 0).length, followed = rows.filter(r => S.follow[r.key] === 1).length;
-  const seg2 = `<div class="seg" role="group" aria-label="筛选"><button data-jf="all" aria-pressed="${S.jfilter === "all"}">全部规则</button><button data-jf="pos" aria-pressed="${S.jfilter === "pos"}">只看靠谱的规则</button></div>`;
-  const body = !rows.length ? `<div class="empty">最近 ${JOURNAL_DAYS[S.tf]} 天这个周期没有新信号。</div>` : `
-    <div class="score"><div><b class="num">${rows.length}</b><span>条信号</span></div>
-      <div><b class="num">${closed.length ? `${won}/${closed.length}` : "—"}</b><span>已结束的买入里赚的</span></div>
-      <div><b class="num">${followed}</b><span>条你跟了</span></div></div>
-    <div class="log">${rows.map(r => {
-      const f = S.follow[r.key];
-      const outcome = r.action === "buy"
-        ? (r.exitAt ? `${md(r.exitAt)} 卖出，这笔 <span class="num ${dir(r.ret)}">${pct(r.ret, 2)}</span>（含手续费）`
-                    : `还在持有，至今 <span class="num ${dir(r.ret)}">${pct(r.ret, 2)}</span>`)
-        : `卖出后价格 <span class="num ${dir(r.ret)}">${pct(r.ret, 2)}</span>，${r.ret < 0 ? "卖对了" : "卖早了"}`;
-      return `<div class="entry">
-        <div class="srow"><span class="sname">${r.base} ${PLAIN[r.sid].name}</span><span class="chip ${r.action}">${CHIP[r.action]}</span></div>
-        <div class="when">${md(r.at)} 收盘价 <span class="num">${px(r.price)}</span>　规则可信度：${CRED[r.grade]}</div>
-        <div>${outcome}</div>
-        <div class="follow"><button data-follow="${r.key}" data-v="1" aria-pressed="${f === 1}">我跟了</button><button data-follow="${r.key}" data-v="0" aria-pressed="${f === 0}">没跟</button></div>
-      </div>`; }).join("")}</div>`;
-  return `${headerHTML("信号记录")}
-    <p class="intro">各条规则最近 ${JOURNAL_DAYS[S.tf]} 天发出的买卖信号，以及之后价格怎么走。这些是规则的信号，不是你的交易；你真的照做了，就点「我跟了」记下来。</p>
-    ${tfSeg()}${seg2}${body}
-    <p class="foot">按 K 线收盘价计算，实际成交会有差别。「我跟了」只保存在这台设备的浏览器里。</p>`;
+  const tf = S.jtf === "1d" ? "1d" : "4h";
+  const seg = `<div class="seg" role="group" aria-label="周期"><button data-jtf="4h" aria-pressed="${tf === "4h"}">4小时 · 开空平空</button><button data-jtf="1d" aria-pressed="${tf === "1d"}">日线 · 方向</button></div>`;
+  const p = S.progress, loading = p.done < p.total ? `<div class="empty">正在拉取行情并计算：${p.done}/${p.total}</div>` : "";
+  return `${headerHTML("信号记录")}${banners()}${seg}${loading || (tf === "4h" ? shortPage() : dailyPage())}
+    <p class="foot">按 K 线价格计算，进出场各扣 0.1% 手续费和 0.05% 滑点，空单另扣资金费；实际成交会有差别。「我跟了」只保存在这台设备的浏览器里。</p>`;
 }
 function settingsPage() {
   const p = S.prefs;
@@ -805,7 +846,8 @@ function settingsPage() {
       <p><b>为什么 5 分钟经常显示「无可靠规则」？</b>周期越短，每次赚的越少，手续费（每次买卖约 0.2%）占的比例越大，大部分规则扣费后都亏钱。5 分钟更适合看入场时机，不适合单独做决定。</p>
       <p><b>行情从哪来？</b>Bybit、OKX、Gate 的免费公开接口（现货 USDT 交易对），不需要账号，也不会碰你的任何账户。主流币在各交易所的价格差通常很小；实际下单在你自己能用的平台上做。</p>
       <p><b>K 线什么时候收盘？</b>信号只在 K 线收盘后更新。日线每天早上 8 点（菲律宾时间）收盘；4 小时线在 0、4、8、12、16、20 点；30 分钟和 5 分钟按整点切分。</p>
-      <p><b>只做现货：</b>「卖出」「看空」表示离场或不买，不是开空单。</p>
+      <p><b>信号记录和推送是什么关系？</b>是同一套做空规则。「记录」页的 4 小时开空、平空，就是推送里的开空、平空；日线方向变化也会推送。旧的 5 条趋势规则只在币种详情页的「旧版参考」里，不推送，也不用于下单。</p>
+      <p><b>为什么有时候没收到推送？</b>大部分时间没有新信号，不推送是正常的。推送每 15 分钟检查一次，但 GitHub 的免费定时任务偶尔会被推迟几个小时；如果晚了，推送里会注明晚了多久。如果开空后在提醒到达前已经平空，这笔就不再推送。</p>
     </div>`;
 }
 function render() {
@@ -823,6 +865,7 @@ document.addEventListener("click", e => {
   else if (d.back) { S.view = null; render(); window.scrollTo(0, 0); }
   else if (d.tf) { S.tf = d.tf; save("tf", S.tf); render(); }
   else if (d.jf) { S.jfilter = d.jf; save("jfilter", S.jfilter); render(); }
+  else if (d.jtf) { S.jtf = d.jtf; save("jtf", S.jtf); render(); window.scrollTo(0, 0); }
   else if (d.colors) { S.prefs.colors = d.colors; save("prefs", S.prefs); applyColors(); render(); }
   else if (d.follow) {
     const v = +d.v;

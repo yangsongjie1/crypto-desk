@@ -257,13 +257,19 @@ function swingCalc(k4, k1) {
     if (!side && w) { side = w; e = w > 0 ? o[i] * (1 + SLIP) : o[i] * (1 - SLIP); eI = i; } }
   const st = sd => { const t = trades.filter(x => x.side === sd); if (!t.length) return { n: 0 }; const w = t.filter(x => x.r > 0).length;
     return { n: t.length, w, win: Math.round(100 * w / t.length), avg: 100 * t.reduce((a, x) => a + x.r, 0) / t.length }; };
+  const ev = [];
+  for (let i = W + 1; i < n; i++) {
+    if (want[i] === want[i - 1]) continue;
+    if (want[i - 1] === -1) ev.push({ t: k4.ts[i], act: "平空", price: c[i], why: r[i] < 35 ? "止盈（RSI 跌到 35 以下）" : c[i] > e200[i] ? "止损（4小时收盘站上 200 均线）" : "日线不再向下" });
+    if (want[i] === -1) ev.push({ t: k4.ts[i], act: "开空", price: c[i] });
+  }
   const L = n - 1, now = want[L], prev = want[L - 1];
   let action = "观望", entry = null, sinceBars = null, phase = null;
   if (now && now !== prev) action = now > 0 ? "开多" : "开空";
   else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; }
   else if (prev) action = prev > 0 ? "平多" : "平空";
   else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
-  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, stats: { L: st(1), S: st(-1) } };
+  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, ev, stats: { L: st(1), S: st(-1) } };
 }
 async function push(title, body, important) {
   if (!KEY) { console.log("  [试运行，不推送]", title, "|", body); return; }
@@ -285,18 +291,28 @@ async function push(title, body, important) {
     const prev = state.swing[b];
     if (!first && prev && prev.dir !== v.dir)
       events.push({ important: true, title: `${b} 日线方向变为${dn(v.dir)}`, body: `现在${v.dir > 0 ? "不做（做多没优势，也别逆势做空）" : v.dir < 0 ? "只找做空机会" : "不做"}。现价 ${fmt(v.price)}。点开看详情。` });
-    if (["开多", "开空", "平多", "平空"].includes(v.action)) {
-      const key = `${b}|swing|${v.barTs}|${v.action}`;
-      if (!sent.has(key)) { sent.add(key);
-        if (!first) {
-          const sd = v.action === "开多" ? 1 : v.action === "开空" ? -1 : 0, s = sd ? v.stats[sd > 0 ? "L" : "S"] : null;
-          const body = sd
-            ? `参考价 ${fmt(v.price)}。止损：4小时收盘${sd > 0 ? "跌破" : "站上"} ${fmt(v.stop)}。止盈：4小时 RSI ${sd > 0 ? "升到 65 以上" : "跌到 35 以下"}。历史胜算见页面。每次最多亏本金 1%，杠杆不超过 2 倍。`
-            : `${v.action === "平多" ? "多单" : "空单"}离场信号。现价 ${fmt(v.price)}。`;
-          events.push({ important: true, title: `${b} ${v.action}`, body });
-        } }
-    }
-    if (v.action === "持空中" && v.sinceBars >= 6 && v.sinceBars < 12) {
+    // 开空/平空：查最近 24 小时内的所有翻转，不只看最新一根，GitHub 定时任务延迟也不会漏
+    const sentBefore = new Set(sent), H4 = 14400000, NOW = Date.now();
+    v.ev.forEach((e, idx) => {
+      const close = e.t + H4, key = `${b}|swing|${e.t}|${e.act}`;
+      if (NOW - close > 86400000 || sent.has(key)) return;
+      sent.add(key);
+      if (first) return;
+      const lateH = (NOW - close) / 3600000, late = lateH >= 1.5 ? `（系统延迟，信号出现在 ${Math.round(lateH)} 小时前）` : "";
+      if (e.act === "开空") {
+        if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
+        const move = (1 - v.price / e.price) * 100;
+        const body = `信号价 ${fmt(e.price)}，现价 ${fmt(v.price)}${late ? `（${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move).toFixed(1)}%，2 天内仍可跟进）` : ""}。止损：4小时收盘站上 ${fmt(v.stop)}。止盈：4小时 RSI 跌到 35 以下。每次最多亏本金 1%，杠杆不超过 2 倍。`;
+        events.push({ important: true, title: `${b} 开空${late}`, body });
+        v.justOpened = true;
+      } else {
+        const opened = [...v.ev.slice(0, idx)].reverse().find(x => x.act === "开空");
+        if (opened && NOW - (opened.t + H4) < 86400000 && !sentBefore.has(`${b}|swing|${opened.t}|开空`)) return; // 开空也没提醒过：用户没持仓，不推平空
+        const gain = opened ? (1 - e.price / opened.price) * 100 : null;
+        events.push({ important: true, title: `${b} 平空${late}`, body: `空单离场：${e.why}。离场价 ${fmt(e.price)}${gain != null ? `，这笔约 ${gain >= 0 ? "+" : ""}${gain.toFixed(1)}%（未扣费）` : ""}。现价 ${fmt(v.price)}。` });
+      }
+    });
+    if (v.action === "持空中" && v.sinceBars >= 6 && v.sinceBars < 12 && !v.justOpened) {
       const key = `${b}|follow|${v.barTs - v.sinceBars * 14400000}`;
       if (!sent.has(key)) { sent.add(key);
         if (!first) { const fell = (1 - v.price / v.entry) * 100, sd = (v.stop / v.price - 1) * 100;
