@@ -142,13 +142,23 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .chip.open { background: var(--accent); color: #fff; } .chip.win { background: var(--up); color: #fff; } .chip.loss { background: var(--down); color: #fff; }
 .chip.ddown { background: var(--down); color: #fff; } .chip.dup { color: var(--up); box-shadow: inset 0 0 0 1px var(--up); } .chip.dnone { background: var(--sunk); color: var(--muted); }
 .dgrid { margin-bottom: 4px; } .dgrid .tfc span { font-family: var(--num); font-weight: 700; color: var(--ink); font-size: 13px; }
+.todo { background: var(--surface); border-radius: 14px; padding: 4px 14px 10px; margin-bottom: 12px; box-shadow: inset 0 0 0 2px var(--accent); }
+.todo .th { color: var(--accent); font-size: 16px; font-weight: 800; margin: 12px 0 4px; }
+.todo h3 { font-size: 14px; margin: 14px 0 6px; } .todo h3.t-go { color: var(--down); } .todo h3.t-exit { color: var(--red); }
+.titem { border-top: 1px solid var(--line); padding: 10px 0; } .titem.dim { opacity: .55; }
+.titem .srow b { font-family: var(--num); font-size: 18px; } .titem p { margin: 6px 0; font-size: 14px; }
+.plan { background: var(--sunk); border-radius: 10px; padding: 4px 10px; margin: 8px 0; }
+.plan div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.plan div:last-child { border-bottom: 0; } .plan span { color: var(--muted); min-width: 9em; } .plan b { font-size: 14px; } .plan i { font-style: normal; color: var(--muted); font-size: 12px; margin-left: auto; }
+.wlist { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; } .wlist span { background: var(--sunk); border-radius: 8px; padding: 4px 9px; font-size: 13px; }
+.todo .none { font-size: 15px; margin: 8px 0; } .todo .why { font-size: 12px; color: var(--muted); }
 </style>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">正在连接行情…</div></div>
 <nav>
   <button data-tab="signals">总览</button>
-  <button data-tab="journal">记录</button>
+  <button data-tab="journal">复盘</button>
   <button data-tab="settings">设置</button>
 </nav>
 <script>
@@ -407,7 +417,7 @@ const save = (k, v) => { try { localStorage.setItem("desk:" + k, JSON.stringify(
 const S = {
   tab: load("tab", "signals"), tf: TFS.includes(load("tf", "1d")) ? load("tf", "1d") : "1d", view: null,
   jfilter: load("jfilter", "all"), jtf: load("jtf", "4h"),
-  prefs: Object.assign({ capital: 1000, risk: 1, maxAlloc: 40, colors: "cn" }, load("prefs", {})),
+  prefs: Object.assign({ capital: 1000, risk: 1, maxAlloc: 40, maxPos: 3, colors: "cn" }, load("prefs", {})),
   follow: load("follow", {}),
   src: null, srcOk: false, srcError: null, lastOk: 0,
   coins: Object.fromEntries(SYMBOLS.map(b => [b, { price: null, change: null, tf: {} }])),
@@ -621,7 +631,7 @@ function swingFor(b) {
   const c4 = S.coins[b].tf["4h"], c1 = S.coins[b].tf["1d"];
   if (!c4?.k || !c1?.k) return null;
   const key = c4.k.ts.at(-1) + "|" + c1.k.ts.at(-1) + "|" + c4.k.c.length;
-  if (SW[b]?.key !== key) { const v = swingCalc(c4.k, c1.k); if (v.dir > 0) Object.assign(v, { action: "观望", side: 0, phase: "nolong" }); SW[b] = { key, v }; }
+  if (SW[b]?.key !== key) { const v = swingCalc(c4.k, c1.k); if (v.dir > 0 && v.action !== "平空") Object.assign(v, { action: "观望", side: 0, phase: "nolong" }); SW[b] = { key, v }; }
   return SW[b].v;
 }
 function pooled(side) {
@@ -680,11 +690,64 @@ function swingBox(b) {
     <p class="vtext">${now}</p>${levels}<p class="odds">${odds}</p></div>`;
 }
 const rank = b => { const v = swingFor(b); if (!v) return 9; if (v.action === "开空") return 0; if (v.action === "平空") return 1; if (v.action === "持空中") return 2 + Math.min(v.sinceBars, 99) / 100; if (v.dir < 0) return 4 + (100 - v.rsi) / 1000; return v.dir === 0 ? 6 : 7; };
+function nextClose4h() { const n = Date.now(), t = Math.ceil(n / 14400000) * 14400000, m = Math.round((t - n) / 60000); return `${md(t).slice(-5)} 收盘（还有 ${m >= 60 ? `${Math.floor(m / 60)} 小时 ` : ""}${m % 60} 分钟）`; }
+function plan(b, v, entry) {
+  const { capital, risk, maxAlloc } = S.prefs, dist = v.stop - entry;
+  if (!(dist > 0)) return `<p class="why">现价已在止损线上方，不要开空。</p>`;
+  const qty = Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / entry), val = qty * entry;
+  return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
+    <div><span>止损（4 小时收盘站上）</span><b class="num">${px(v.stop)}</b><i>+${(dist / entry * 100).toFixed(1)}%</i></div>
+    <div><span>止盈</span><b>4 小时 RSI 跌到 35 以下</b><i>现在 ${v.rsi.toFixed(0)}</i></div>
+    <div><span>仓位</span><b class="num">${qty >= 100 ? Math.round(qty).toLocaleString("en-US") : qty.toPrecision(3)} ${b}</b><i>≈ ${Math.round(val)} U，2 倍杠杆占保证金约 ${Math.round(val / 2)} U</i></div>
+    <div><span>打到止损最多亏</span><b class="num">${(qty * dist).toFixed(1)} U</b><i>本金的 ${(qty * dist / capital * 100).toFixed(1)}%</i></div></div>`;
+}
+function followBtns(key) { const f = S.follow[key]; return `<div class="follow"><button data-follow="${key}" data-v="1" aria-pressed="${f === 1}">我开了这笔</button><button data-follow="${key}" data-v="0" aria-pressed="${f === 0}">不开</button></div>`; }
+function todoBox() {
+  if (S.progress.done < S.progress.total) return "";
+  const NOW = Date.now(), go = [], exit = [], hold = [], watch = [];
+  for (const b of SYMBOLS) {
+    const v = swingFor(b); if (!v) continue;
+    const price = priceOf(b) ?? v.price, s = v.stats.S;
+    if (v.open && v.open.side < 0) {
+      const key = `${b}|short|${v.open.t0}`, mine = S.follow[key] === 1;
+      if (v.action === "平空") { if (S.follow[key] !== 2) exit.push({ b, v, key, mine, price, p0: v.open.p0 }); }
+      else if (mine) hold.push({ b, v, key, price, p0: v.open.p0 });
+      else if (v.action === "开空" || v.sinceBars < 12) go.push({ b, v, key, price, fresh: v.action === "开空", score: s.n ? s.avg : 0, s });
+    }
+    const last = v.trades.at(-1);
+    if (last && last.side < 0 && NOW - last.t1 < 86400000) {
+      const key = `${b}|short|${last.t0}`; if (S.follow[key] === 1) exit.push({ b, v, key, mine: true, price, p0: last.p0, done: last });
+    }
+    if (v.dir < 0 && v.phase === "hot") watch.push({ b, v });
+  }
+  const held = hold.length + exit.filter(x => x.mine && !x.done).length, slots = Math.max(0, S.prefs.maxPos - held);
+  go.sort((x, y) => (y.fresh - x.fresh) || (y.score - x.score));
+  const sec = [];
+  if (exit.length) sec.push(`<h3 class="t-exit">该平空</h3>${exit.map(x => {
+    const g = x.done ? x.done.r : 1 - x.price / x.p0 - 2 * FEE;
+    return `<div class="titem"><div class="srow"><b>${x.b}</b><span class="chip loss">平空</span></div>
+      <p>${x.mine ? "你开的这笔空单" : `如果你手里有 ${x.b} 空单，`}规则已发出离场信号${x.done ? `（${md(x.done.t1)}）` : ""}，现在平掉。这笔约 <span class="num ${dir(g)}">${pct(g, 1)}</span>。</p>
+      ${x.mine ? `<div class="follow"><button data-follow="${x.key}" data-v="2">我已平仓</button></div>` : ""}</div>`; }).join("")}`);
+  if (go.length) sec.push(`<h3 class="t-go">可以开空</h3>${slots ? "" : `<p class="why">你已标记持有 ${held} 笔空单，到达上限 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，同时开太多空单等于把风险叠在一起，先不开新的。</p>`}${go.map((x, i) => {
+    const late = x.fresh ? "刚出信号" : `已过 ${followAge(x.v)}${x.v.sinceBars >= 6 ? "，仍可跟进" : ""}`, moved = 1 - x.price / x.v.open.p0;
+    const tag = !slots ? `<span class="chip dnone">满仓不开</span>` : i < slots ? `<span class="chip ddown">${i === 0 ? "优先" : "可开"}</span>` : `<span class="chip dnone">备选</span>`;
+    return `<div class="titem ${!slots || i >= slots ? "dim" : ""}"><div class="srow"><b>${x.b}</b>${tag}</div>
+      <p>${late}${x.fresh ? "" : `，信号价 ${px(x.v.open.p0)}，至今 <span class="num ${dir(moved)}">${moved >= 0 ? "已跌" : "已涨"} ${Math.abs(moved * 100).toFixed(1)}%</span>`}。${x.s.n ? `这个币历史上这样做空 ${x.s.n} 次，胜率 ${x.s.win}%，平均每次 ${sgn(x.s.avg)}。` : ""}</p>
+      ${plan(x.b, x.v, x.price)}${followBtns(x.key)}</div>`; }).join("")}`);
+  if (hold.length) sec.push(`<h3>你持有的空单</h3>${hold.map(x => { const g = 1 - x.price / x.p0 - 2 * FEE;
+    return `<div class="titem"><div class="srow"><b>${x.b}</b><span class="chip open">拿着</span></div>
+      <p>开空 ${px(x.p0)}，至今 <span class="num ${dir(g)}">${pct(g, 1)}</span>。继续拿着，不用动：4 小时收盘站上 <b class="num">${px(x.v.stop)}</b> 止损，RSI 跌到 35 以下（现在 ${x.v.rsi.toFixed(0)}）止盈，出信号会推送。</p></div>`; }).join("")}`);
+  if (watch.length) sec.push(`<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。现在先别提前进场。</p>
+    <div class="wlist">${watch.map(x => `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)}</span>`).join("")}</div>`);
+  const body = sec.length ? sec.join("") : `<p class="none">现在没有要操作的。等推送就行，下一根 4 小时 K 线 ${nextClose4h()}。</p>`;
+  return `<section class="todo"><h2 class="th">现在要做的事</h2>${body}
+    <p class="why">开了单就点「我开了这笔」，之后平空提醒和持仓上限才会按你的实际持仓算。只记在这台手机上。</p></section>`;
+}
 function overviewPage() {
   const pS = pooled(-1), pL = pooled(1), counts = {};
   SYMBOLS.forEach(b => { const v = swingFor(b); if (v) counts[v.action] = (counts[v.action] || 0) + 1; });
   const sum = Object.keys(counts).length ? `<div class="banner">现在：${Object.entries(counts).map(([a, n]) => `${a} ${n} 个`).join("，")}。<br>这套方法的历史：做空 ${pS ? `${pS.n} 次，胜率 ${pS.win}%，平均每次 ${sgn(pS.avg)}` : "—"}；做多 ${pL ? `${pL.n} 次，胜率 ${pL.win}%，平均每次 ${sgn(pL.avg)}` : "—"}。</div>` : "";
-  return `${headerHTML("数字货币决策台")}${banners()}${sum}
+  return `${headerHTML("数字货币决策台")}${banners()}${todoBox()}${sum}
     ${[...SYMBOLS].sort((x, y) => rank(x) - rank(y)).map(b => `<button class="card" data-coin="${b}"><div class="ctop">${priceLine(b)}</div>${swingBox(b)}<span class="more">看详细说明 ›</span></button>`).join("")}
     <p class="foot">指令来自「顺大势、逆小势」：日线定方向，4 小时等反弹做空、等回调做多。历史胜算是过去约 1,000 天的模拟，已扣手续费和资金费，不代表以后一定赚。做多历史上没有优势，目前只提示做空。合约有杠杆，务必设止损、小仓位。</p>`;
 }
@@ -744,16 +807,16 @@ function shortTrades() {
     for (const t of v.trades) if (t.side < 0 && t.t1 >= cut) out.push({ ...t, base: b, key: `${b}|short|${t.t0}` });
     if (v.open && v.open.side < 0) {
       const cur = priceOf(b) ?? v.price, ret = 1 - cur / v.open.p0 - 2 * FEE;
-      out.push({ ...v.open, base: b, key: `${b}|short|${v.open.t0}`, live: true, ret, cur, stop: v.stop, rsi: v.rsi, since: v.sinceBars ?? 0 });
+      out.push({ ...v.open, base: b, key: `${b}|short|${v.open.t0}`, live: true, exiting: v.action === "平空", ret, cur, stop: v.stop, rsi: v.rsi, since: v.sinceBars ?? 0 });
     }
   }
   return out.sort((x, y) => (!!y.live - !!x.live) || (y.t0 - x.t0));
 }
 function tradeCard(t) {
   const f = S.follow[t.key], r = t.live ? t.ret : t.r;
-  const chip = t.live ? `<span class="chip open">持仓中</span>` : `<span class="chip ${r > 0 ? "win" : "loss"}">${r > 0 ? "赚" : "亏"} ${pct(r, 1)}</span>`;
+  const chip = t.exiting ? `<span class="chip loss">该平空</span>` : t.live ? `<span class="chip open">持仓中</span>` : `<span class="chip ${r > 0 ? "win" : "loss"}">${r > 0 ? "赚" : "亏"} ${pct(r, 1)}</span>`;
   const lines = t.live
-    ? `<div>至今 <span class="num ${dir(r)}">${pct(r, 2)}</span>（已扣手续费），持有 ${dur(t.since)}${t.since >= 12 ? "，超过 2 天，没跟的别再追" : t.since >= 6 ? "，还能跟进" : "，可以跟进"}</div>
+    ? `<div>至今 <span class="num ${dir(r)}">${pct(r, 2)}</span>（已扣手续费），持有 ${dur(t.since)}${t.exiting ? "，规则已发出平空信号" : t.since >= 12 ? "，超过 2 天，没跟的别再追" : t.since >= 6 ? "，还能跟进" : "，可以跟进"}</div>
        <div class="when">止损：4 小时收盘站上 <span class="num">${px(t.stop)}</span>　止盈：RSI 跌到 35 以下（现在 ${t.rsi.toFixed(0)}）</div>`
     : `<div class="when">平空 ${md(t.t1)}　<span class="num">${px(t.p1)}</span>　${WHY[t.why]}</div>
        <div>这笔 <span class="num ${dir(r)}">${pct(r, 2)}</span>（含手续费和资金费），持有 ${dur(t.bars)}</div>`;
@@ -761,15 +824,15 @@ function tradeCard(t) {
     <div class="srow"><span class="sname">${t.base} 空单</span>${chip}</div>
     <div class="when">开空 ${md(t.t0)}　<span class="num">${px(t.p0)}</span></div>
     ${lines}
-    <div class="follow"><button data-follow="${t.key}" data-v="1" aria-pressed="${f === 1}">我跟了</button><button data-follow="${t.key}" data-v="0" aria-pressed="${f === 0}">没跟</button></div>
+    <div class="follow"><button data-follow="${t.key}" data-v="1" aria-pressed="${f >= 1}">我跟了</button><button data-follow="${t.key}" data-v="0" aria-pressed="${f === 0}">没跟</button></div>
   </div>`;
 }
 function shortPage() {
   const all = shortTrades();
-  const rows = S.jfilter === "mine" ? all.filter(t => S.follow[t.key] === 1) : all;
+  const rows = S.jfilter === "mine" ? all.filter(t => S.follow[t.key] >= 1) : all;
   const closed = rows.filter(t => !t.live), won = closed.filter(t => t.r > 0).length, live = rows.length - closed.length;
   const avg = closed.length ? closed.reduce((a, t) => a + t.r, 0) / closed.length : null;
-  const mine = all.filter(t => S.follow[t.key] === 1 && !t.live), mineSum = mine.reduce((a, t) => a + t.r, 0);
+  const mine = all.filter(t => S.follow[t.key] >= 1 && !t.live), mineSum = mine.reduce((a, t) => a + t.r, 0);
   const p = pooled(-1);
   const seg2 = `<div class="seg" role="group" aria-label="筛选"><button data-jf="all" aria-pressed="${S.jfilter !== "mine"}">全部空单</button><button data-jf="mine" aria-pressed="${S.jfilter === "mine"}">只看我跟了的</button></div>`;
   const score = `<div class="score"><div><b class="num">${rows.length}</b><span>笔空单${live ? `（${live} 笔持仓中）` : ""}</span></div>
@@ -815,7 +878,7 @@ function journalPage() {
   const tf = S.jtf === "1d" ? "1d" : "4h";
   const seg = `<div class="seg" role="group" aria-label="周期"><button data-jtf="4h" aria-pressed="${tf === "4h"}">4小时 · 开空平空</button><button data-jtf="1d" aria-pressed="${tf === "1d"}">日线 · 方向</button></div>`;
   const p = S.progress, loading = p.done < p.total ? `<div class="empty">正在拉取行情并计算：${p.done}/${p.total}</div>` : "";
-  return `${headerHTML("信号记录")}${banners()}${seg}${loading || (tf === "4h" ? shortPage() : dailyPage())}
+  return `${headerHTML("信号复盘")}${banners()}<p class="intro"><b>这里都是历史，不用操作。</b>用来检查规则最近准不准、你自己跟单赚亏多少。要操作的看「总览」最上面的「现在要做的事」。</p>${seg}${loading || (tf === "4h" ? shortPage() : dailyPage())}
     <p class="foot">按 K 线价格计算，进出场各扣 0.1% 手续费和 0.05% 滑点，空单另扣资金费；实际成交会有差别。「我跟了」只保存在这台设备的浏览器里。</p>`;
 }
 function settingsPage() {
@@ -828,6 +891,7 @@ function settingsPage() {
       <label class="field">本金（USDT）<input type="number" inputmode="decimal" data-pref="capital" value="${p.capital}"></label>
       <label class="field">每笔最多亏本金的 %<input type="number" inputmode="decimal" step="0.1" data-pref="risk" value="${p.risk}"></label>
       <label class="field">单个币最多占本金的 %<input type="number" inputmode="decimal" data-pref="maxAlloc" value="${p.maxAlloc}"></label>
+      <label class="field">最多同时持有几笔空单<input type="number" inputmode="numeric" data-pref="maxPos" value="${p.maxPos}"></label>
       <div class="field">涨跌颜色<div class="seg"><button data-colors="cn" aria-pressed="${p.colors === "cn"}">红涨绿跌</button><button data-colors="west" aria-pressed="${p.colors === "west"}">绿涨红跌</button></div></div>
     </div>
     <h2>数据源</h2>
@@ -846,7 +910,7 @@ function settingsPage() {
       <p><b>为什么 5 分钟经常显示「无可靠规则」？</b>周期越短，每次赚的越少，手续费（每次买卖约 0.2%）占的比例越大，大部分规则扣费后都亏钱。5 分钟更适合看入场时机，不适合单独做决定。</p>
       <p><b>行情从哪来？</b>Bybit、OKX、Gate 的免费公开接口（现货 USDT 交易对），不需要账号，也不会碰你的任何账户。主流币在各交易所的价格差通常很小；实际下单在你自己能用的平台上做。</p>
       <p><b>K 线什么时候收盘？</b>信号只在 K 线收盘后更新。日线每天早上 8 点（菲律宾时间）收盘；4 小时线在 0、4、8、12、16、20 点；30 分钟和 5 分钟按整点切分。</p>
-      <p><b>信号记录和推送是什么关系？</b>是同一套做空规则。「记录」页的 4 小时开空、平空，就是推送里的开空、平空；日线方向变化也会推送。旧的 5 条趋势规则只在币种详情页的「旧版参考」里，不推送，也不用于下单。</p>
+      <p><b>信号记录和推送是什么关系？</b>是同一套做空规则。「复盘」页的 4 小时开空、平空，就是推送里的开空、平空；日线方向变化也会推送。旧的 5 条趋势规则只在币种详情页的「旧版参考」里，不推送，也不用于下单。</p>
       <p><b>为什么有时候没收到推送？</b>大部分时间没有新信号，不推送是正常的。推送每 15 分钟检查一次，但 GitHub 的免费定时任务偶尔会被推迟几个小时；如果晚了，推送里会注明晚了多久。如果开空后在提醒到达前已经平空，这笔就不再推送。</p>
     </div>`;
 }
