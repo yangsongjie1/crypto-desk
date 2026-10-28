@@ -21,7 +21,7 @@
    "action": "观望"
   },
   "SOL": {
-   "dir": 1,
+   "dir": 0,
    "action": "观望"
   },
   "BNB": {
@@ -45,7 +45,7 @@
    "action": "观望"
   },
   "LINK": {
-   "dir": 1,
+   "dir": 0,
    "action": "观望"
   },
   "LTC": {
