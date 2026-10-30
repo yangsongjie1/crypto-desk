@@ -9,7 +9,8 @@
  "sent": [
   "BNB|4h|ema_trend|1792771200000|sell",
   "XRP|swing|1792828800000|平空",
-  "DOGE|swing|1792843200000|平空"
+  "DOGE|swing|1792843200000|平空",
+  "LTC|swing|1793304000000|开空"
  ],
  "swing": {
   "BTC": {
@@ -17,11 +18,11 @@
    "action": "观望"
   },
   "ETH": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "SOL": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "BNB": {
@@ -45,15 +46,15 @@
    "action": "观望"
   },
   "LINK": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "LTC": {
-   "dir": 1,
-   "action": "观望"
+   "dir": -1,
+   "action": "开空"
   },
   "DOT": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "TRX": {
