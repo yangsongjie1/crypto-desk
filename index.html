@@ -152,12 +152,47 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .plan div:last-child { border-bottom: 0; } .plan span { color: var(--muted); min-width: 9em; } .plan b { font-size: 14px; } .plan i { font-style: normal; color: var(--muted); font-size: 12px; margin-left: auto; }
 .wlist { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; } .wlist span { background: var(--sunk); border-radius: 8px; padding: 4px 9px; font-size: 13px; }
 .todo .none { font-size: 15px; margin: 8px 0; } .todo .why { font-size: 12px; color: var(--muted); }
+.chartbox { background: var(--surface); border-radius: 14px; padding: 10px 8px 8px; margin: 10px 0; }
+.chartbox .ctl { display: flex; align-items: center; gap: 8px; padding: 0 4px 6px; }
+.chartbox .ctl .seg { margin: 0; width: 150px; } .chartbox .ctl .seg button { padding: 4px 0; font-size: 13px; }
+.chartbox .ctl span { font-size: 12px; color: var(--muted); margin-left: auto; }
+.chart { height: 300px; width: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 4px 0; font-size: 11px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: 3px; margin-right: 4px; }
+.legend i.dash { border-top-style: dashed; }
+.lv { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: baseline; font-size: 14px; margin: 6px 0; }
+.lv span { color: var(--muted); font-size: 13px; } .lv b { font-family: var(--num); font-size: 16px; } .lv i { font-style: normal; font-size: 12px; color: var(--muted); text-align: right; }
+.lv .sl, .plan .sl { color: var(--red); } .lv .tp, .plan .tp { color: var(--green); }
+.link { border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 600; padding: 4px 0; cursor: pointer; }
+.msgday { font-size: 12px; color: var(--muted); font-weight: 600; margin: 14px 4px 6px; }
+.msg { padding: 11px 0; border-bottom: 1px solid var(--line); }
+.msg:last-child { border-bottom: 0; }
+.msg .srow b { font-size: 15px; } .msg .when { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.msg p { margin: 4px 0 2px; font-size: 13px; color: var(--muted); line-height: 1.55; }
+.msg.new { box-shadow: inset 3px 0 0 var(--accent); padding-left: 10px; }
+.chip.kfollow { background: var(--sunk); color: var(--down); box-shadow: inset 0 0 0 1px var(--down); }
+.badge { display: inline-block; min-width: 17px; height: 17px; line-height: 17px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
+.th2 { color: var(--ink); font-size: 15px; font-weight: 700; margin: 12px 0 2px; }
+.status { background: var(--surface); border-radius: 14px; padding: 2px 14px 8px; margin-bottom: 12px; }
+.strow { border-top: 1px solid var(--line); padding: 9px 0; } .strow:first-of-type { border-top: 0; }
+.strow p { margin: 3px 0; font-size: 12px; color: var(--muted); } .strow p b { color: var(--ink); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; background: var(--idle); }
+.dot.green { background: #22A86B; } .dot.yellow { background: #E3A21A; } .dot.red { background: #E5484D; }
+.stw { font-size: 12px; font-weight: 700; color: var(--muted); } .stw.green { color: #22A86B; } .stw.yellow { color: #C98A0C; } .stw.red { color: #E5484D; }
+.chip.sys { background: var(--sunk); color: var(--muted); font-weight: 600; font-size: 11px; margin-right: 6px; }
+.tline { margin: 8px 0 0; font-size: 13px; color: var(--muted); } .tline .chip { margin-right: 6px; } .tline b { color: var(--ink); } .tline b.up { color: var(--up); }
+.warn { color: #C98A0C; font-size: 12px !important; display: block !important; border-bottom: 0 !important; }
+.fill { background: var(--sunk); border-radius: 10px; padding: 2px 10px 8px; margin: 8px 0; }
+.fill .field { padding: 8px 0; font-size: 14px; } .fill .field input { width: 120px; background: var(--surface); }
+.synctext { display: block; width: 100%; min-height: 64px; margin: 8px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); color: var(--ink); font: 12px/1.4 ui-monospace, Menlo, monospace; padding: 8px; word-break: break-all; }
+.seg button { white-space: nowrap; }
 </style>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">正在连接行情…</div></div>
 <nav>
   <button data-tab="signals">总览</button>
+  <button data-tab="msgs">消息</button>
   <button data-tab="journal">复盘</button>
   <button data-tab="settings">设置</button>
 </nav>
@@ -419,6 +454,8 @@ const S = {
   jfilter: load("jfilter", "all"), jtf: load("jtf", "4h"),
   prefs: Object.assign({ capital: 1000, risk: 1, maxAlloc: 40, maxPos: 3, colors: "cn" }, load("prefs", {})),
   follow: load("follow", {}),
+  seenAt: load("seenAt", 0), alerts: null, alertsErr: null,
+  fills: load("fills", {}), fillEdit: null, closeEdit: null, delAsk: null, syncMsg: "", syncOut: "",
   src: null, srcOk: false, srcError: null, lastOk: 0,
   coins: Object.fromEntries(SYMBOLS.map(b => [b, { price: null, change: null, tf: {} }])),
   progress: { done: 0, total: SYMBOLS.length * TFS.length }, diag: null, testing: false,
@@ -642,7 +679,7 @@ function pooled(side) {
 const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
 function needText(v) {
   const r = v.rsi.toFixed(0);
-  if (v.phase === "nolong") return "日线向上。这套方法做多历史上没有优势，所以不提示做多。也不要逆势做空：日线向上时做空，历史上 5 次有 4 次亏。等日线转为向下。";
+  if (v.phase === "nolong") return "日线向上，4 小时做空系统不做：日线向上时做空，历史上 5 次有 4 次亏。做多机会看下面的日线趋势。";
   if (v.phase === "nodir") return "日线方向不明（不是明确的上升或下降趋势），这时候不做。";
   if (v.phase === "wrongside") return v.dir < 0 ? `日线向下，但 4 小时价格还在 200 均线（${px(v.stop)}）上方，等跌回均线下方再找做空机会。` : `日线向上，但 4 小时价格还在 200 均线（${px(v.stop)}）下方，等站回均线上方再找做多机会。`;
   if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 65 以下就会发出开空信号。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
@@ -667,7 +704,7 @@ function swingBox(b) {
   if (!v) return `<div class="sw"><p class="vtext">正在计算…</p></div>`;
   const price = priceOf(b) ?? v.price;
   const cls = { "开多": "long", "持多中": "long", "开空": "short", "持空中": "short", "平多": "exit", "平空": "exit", "观望": "wait" }[v.action];
-  const dirLine = v.dir > 0 ? "日线向上 → 不做（做多没优势）" : v.dir < 0 ? "日线向下 → 只做空" : "日线方向不明 → 不做";
+  const dirLine = v.dir > 0 ? "日线向上 → 做空系统不做" : v.dir < 0 ? "日线向下 → 只做空" : "日线方向不明 → 不做";
   const active = ["开多", "开空", "持多中", "持空中"].includes(v.action), sd = v.side || v.dir;
   let now;
   if (v.action === "开多" || v.action === "开空") now = `刚出现<b>${v.action}</b>信号（4 小时收盘于 ${md(v.barTs + TF_MS["4h"])}），参考进场价 ${px(price)}。`;
@@ -679,77 +716,192 @@ function swingBox(b) {
     const dist = Math.abs(v.stop - price), { capital, risk, maxAlloc } = S.prefs;
     const qty = dist > 0 ? Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / price) : 0;
     levels = `<p>止损：4 小时收盘价${v.side > 0 ? "跌破" : "站上"} <b class="num">${px(v.stop)}</b>（跟着 200 均线移动）</p>
-      <p>止盈：4 小时 RSI ${v.side > 0 ? "升到 65 以上" : "跌到 35 以下"}（现在 ${v.rsi.toFixed(0)}）</p>
+      <p>止盈：4 小时 RSI ${v.side > 0 ? "升到 65 以上" : "跌到 35 以下"}（现在 ${v.rsi.toFixed(0)}）${v.side < 0 ? tpText(b, price) : ""}</p>
       ${qty ? `<p>仓位：每次最多亏本金的 ${risk}%，约 <b class="num">${qty >= 100 ? Math.round(qty).toLocaleString("en-US") : qty.toPrecision(3)}</b> ${b}（≈ ${Math.round(qty * price)} U），杠杆不超过 2 倍。</p>` : ""}`;
   }
   let odds = "日线方向明确后，才有对应方向的历史胜算。";
-  if (v.phase === "nolong") { const p = pooled(1); if (p) odds = `做多的历史：${SYMBOLS.length} 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}，没有优势，所以不做。`; }
+  if (v.phase === "nolong") odds = "日线向上时 4 小时做空系统不做（逆势做空历史上 5 次有 4 次亏）。做多看「日线趋势」那一行。";
   else if (sd) { const s = v.stats[sd > 0 ? "L" : "S"], p = pooled(sd), nm = sd > 0 ? "做多" : "做空";
-    odds = s.n ? `历史胜算：${b} 用这个方法${nm} ${s.n} 次，赚 ${s.w} 次（胜率 ${s.win}%），平均每次 <b class="${dir(s.avg)}">${sgn(s.avg)}</b>${p ? `。${SYMBOLS.length} 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}` : ""}。` : `${b} 历史上这种${nm}机会太少，没有参考数据。`; }
+    odds = s.n ? `近 1000 天：${b} 用这个方法${nm} ${s.n} 次，赚 ${s.w} 次（胜率 ${s.win}%），平均每次 <b class="${dir(s.avg)}">${sgn(s.avg)}</b>${p ? `。${SYMBOLS.length} 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}` : ""}。` : `${b} 历史上这种${nm}机会太少，没有参考数据。`; }
   return `<div class="sw"><div class="swtop"><span class="act ${cls}">${v.action}</span>${followTag(v)}<span class="swdir">${dirLine}</span></div>
     <p class="vtext">${now}</p>${levels}<p class="odds">${odds}</p></div>`;
 }
 const rank = b => { const v = swingFor(b); if (!v) return 9; if (v.action === "开空") return 0; if (v.action === "平空") return 1; if (v.action === "持空中") return 2 + Math.min(v.sinceBars, 99) / 100; if (v.dir < 0) return 4 + (100 - v.rsi) / 1000; return v.dir === 0 ? 6 : 7; };
 function nextClose4h() { const n = Date.now(), t = Math.ceil(n / 14400000) * 14400000, m = Math.round((t - n) / 60000); return `${md(t).slice(-5)} 收盘（还有 ${m >= 60 ? `${Math.floor(m / 60)} 小时 ` : ""}${m % 60} 分钟）`; }
-function plan(b, v, entry) {
-  const { capital, risk, maxAlloc } = S.prefs, dist = v.stop - entry;
-  if (!(dist > 0)) return `<p class="why">现价已在止损线上方，不要开空。</p>`;
-  const qty = Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / entry), val = qty * entry;
-  return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
-    <div><span>止损（4 小时收盘站上）</span><b class="num">${px(v.stop)}</b><i>+${(dist / entry * 100).toFixed(1)}%</i></div>
-    <div><span>止盈</span><b>4 小时 RSI 跌到 35 以下</b><i>现在 ${v.rsi.toFixed(0)}</i></div>
-    <div><span>仓位</span><b class="num">${qty >= 100 ? Math.round(qty).toLocaleString("en-US") : qty.toPrecision(3)} ${b}</b><i>≈ ${Math.round(val)} U，2 倍杠杆占保证金约 ${Math.round(val / 2)} U</i></div>
-    <div><span>打到止损最多亏</span><b class="num">${(qty * dist).toFixed(1)} U</b><i>本金的 ${(qty * dist / capital * 100).toFixed(1)}%</i></div></div>`;
+// ===== 两套系统：4 小时做空 + 日线趋势做多 =====
+// 全历史（2018 年起，币安数据，2026-10-31 回测；已扣手续费、滑点、资金费）
+const HIST = { short: { n: 649, win: 39, avg: 0.0 }, trend: { n: 335, win: 41, avg: 14.5 } };
+const SYSN = { short: "4小时做空", trend: "日线趋势做多" };
+const TR = {};
+function trendFor(b) {
+  const c1 = S.coins[b].tf["1d"]; if (!c1?.k) return null;
+  const key = c1.k.ts.at(-1) + "|" + c1.k.c.length;
+  if (TR[b]?.key !== key) TR[b] = { key, v: trendCalc(c1.k, true) };
+  return TR[b].v;
 }
-function followBtns(key) { const f = S.follow[key]; return `<div class="follow"><button data-follow="${key}" data-v="1" aria-pressed="${f === 1}">我开了这笔</button><button data-follow="${key}" data-v="0" aria-pressed="${f === 0}">不开</button></div>`; }
+function sysTrades(sys) {
+  const out = [];
+  for (const b of SYMBOLS) {
+    const v = sys === "short" ? swingFor(b) : trendFor(b); if (!v) continue;
+    for (const t of v.trades) if (sys === "trend" || t.side < 0) out.push({ ...t, b });
+  }
+  return out;
+}
+function statsOf(T) { if (!T.length) return null; const w = T.filter(t => t.r > 0).length; return { n: T.length, win: Math.round(100 * w / T.length), avg: 100 * T.reduce((a, t) => a + t.r, 0) / T.length }; }
+const HC = {};
+function health(sys) {
+  const tr = sysTrades(sys), key = tr.length + "|" + tr.reduce((m, t) => Math.max(m, t.t1), 0);
+  if (HC[sys]?.key !== key) HC[sys] = { key, h: healthOf(tr), recent: statsOf(tr.filter(t => t.t0 >= Date.now() - 1000 * 86400000)) };
+  return HC[sys];
+}
+const fmtQty = q => q >= 100 ? Math.round(q).toLocaleString("en-US") : q.toPrecision(3);
+const sideW = s => s < 0 ? "空" : "多";
+function statusPanel() {
+  if (S.progress.done < S.progress.total) return "";
+  const row = sys => {
+    const { h, recent } = health(sys), H = HIST[sys];
+    return `<div class="strow"><div class="srow"><span><i class="dot ${h.level}"></i><b>${SYSN[sys]}</b></span><span class="stw ${h.level}">${h.word}</span></div>
+      <p>${h.n >= 15 ? `最近 ${h.n} 笔：胜率 ${Math.round(h.win * 100)}%，平均每笔 <b class="${dir(h.avg)}">${sgn(h.avg * 100)}</b>，盈亏比 ${h.pf.toFixed(2)}` : "最近的交易太少，先不判断"}</p>
+      <p>近 1000 天：${recent ? `${recent.n} 次，胜率 ${recent.win}%，平均 ${sgn(recent.avg)}` : "—"}　｜　2018 年起：${H.n} 次，胜率 ${H.win}%，平均 ${sgn(H.avg)}</p></div>`;
+  };
+  return `<section class="status"><h2 class="th2">策略状态</h2>${row("short")}${row("trend")}
+    <p class="why">看最近 30 笔模拟交易：赚的是亏的 1.1 倍以上为绿灯；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓（已有的单照常按规则离场）。状态变化会推送。两套系统一个做空、一个做多，通常一个好的时候另一个差，所以一起跑。</p></section>`;
+}
+function tpTrend() { return `<b>不设固定止盈</b><i>平仓线每天上移（前 10 日最低价），日线收盘跌破就平</i>`; }
+function planBox(b, sys, side, entry, stop, tpHTML) {
+  const { capital, risk, maxAlloc } = S.prefs, h = health(sys).h, dist = side < 0 ? stop - entry : entry - stop;
+  if (!(dist > 0)) return `<p class="why">现价已越过止损线，不要开${sideW(side)}。</p>`;
+  const qty = Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / entry) * h.factor, val = qty * entry, tight = sys === "short" && dist / entry < 0.02;
+  return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
+    <div><span>止损</span><b class="num sl">${px(stop)}</b><i>${pctTo(stop, entry)}，${sys === "short" ? "4 小时收盘站上它就平" : "日线收盘跌破它就平"}</i></div>
+    <div><span>止盈</span>${tpHTML}</div>
+    ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(val)} U${sys === "short" ? `，2 倍杠杆占保证金约 ${Math.round(val / 2)} U` : "，现货或 1 倍"}${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>
+    <div><span>打到止损最多亏</span><b class="num">${(qty * dist).toFixed(1)} U</b><i>本金的 ${(qty * dist / capital * 100).toFixed(1)}%</i></div>`
+    : `<div><span>建议仓位</span><b>暂停</b><i>策略状态红灯，先只看不做</i></div>`}
+    ${tight ? `<div class="warn">⚠ 止损离进场只有 ${(dist / entry * 100).toFixed(1)}%。历史上这种单胜率只有 18%，而且按风险算出的仓位最大，建议跳过或仓位减半。</div>` : ""}</div>`;
+}
+function followBtns(key, p0) { const f = S.follow[key]; return `<div class="follow"><button data-follow="${key}" data-v="1" data-p0="${p0}" aria-pressed="${f === 1}">我开了这笔</button><button data-follow="${key}" data-v="0" aria-pressed="${f === 0}">不开</button></div>`; }
+// ----- 实际成交 -----
+function fillOf(key) { return S.fills[key] || null; }
+function fillForm(key, b, entryDef, qtyDef) {
+  const f = fillOf(key) || {};
+  return `<div class="fill"><p class="why">填上实际成交价和数量，盈亏和复盘就按你的真实成交算。不填也行。</p>
+    <label class="field">进场价<input type="number" inputmode="decimal" step="any" data-fe="${key}" value="${f.entry != null && !f.est ? f.entry : +(+entryDef).toPrecision(6)}"></label>
+    <label class="field">数量（${b}）<input type="number" inputmode="decimal" step="any" data-fq="${key}" value="${f.qty ?? (qtyDef ? +qtyDef.toPrecision(4) : "")}"></label>
+    ${f.exitT ? `<label class="field">平仓价<input type="number" inputmode="decimal" step="any" data-fx="${key}" value="${f.exit ?? ""}"></label>` : ""}
+    <div class="follow"><button data-fsave="${key}">保存</button><button data-fcancel="1">取消</button></div></div>`;
+}
+function exitForm(key, price) {
+  const f = fillOf(key) || {};
+  return `<div class="fill"><label class="field">实际平仓价<input type="number" inputmode="decimal" step="any" data-fx="${key}" value="${f.exit ?? +(+price).toPrecision(6)}"></label>
+    <div class="follow"><button data-xsave="${key}" data-px="${price}">保存，已平仓</button><button data-fcancel="1">取消</button></div></div>`;
+}
+function pnl(f, price) {
+  const exit = f.exitT ? f.exit : price; if (!(exit > 0) || !(f.entry > 0)) return null;
+  const r = f.side * (exit / f.entry - 1) - 2 * FEE;
+  return { r, u: f.qty ? f.qty * f.entry * f.side * (exit / f.entry - 1) - f.qty * (f.entry + exit) * FEE : null };
+}
+function pnlText(x) { return x ? `<span class="num ${dir(x.r)}">${pct(x.r, 1)}</span>${x.u != null ? `（<span class="num ${dir(x.u)}">${x.u >= 0 ? "+" : ""}${x.u.toFixed(1)} U</span>）` : ""}` : "—"; }
 function todoBox() {
   if (S.progress.done < S.progress.total) return "";
-  const NOW = Date.now(), go = [], exit = [], hold = [], watch = [];
+  const NOW = Date.now(), go = [], exit = [], hold = [], watch = [], twatch = [];
+  const trendWhy = w => w === "sl" ? "日线收盘跌破初始止损" : "日线收盘跌破前 10 日最低价";
   for (const b of SYMBOLS) {
-    const v = swingFor(b); if (!v) continue;
-    const price = priceOf(b) ?? v.price, s = v.stats.S;
-    if (v.open && v.open.side < 0) {
-      const key = `${b}|short|${v.open.t0}`, mine = S.follow[key] === 1;
-      if (v.action === "平空") { if (S.follow[key] !== 2) exit.push({ b, v, key, mine, price, p0: v.open.p0 }); }
-      else if (mine) hold.push({ b, v, key, price, p0: v.open.p0 });
-      else if (v.action === "开空" || v.sinceBars < 12) go.push({ b, v, key, price, fresh: v.action === "开空", score: s.n ? s.avg : 0, s });
+    const v = swingFor(b), t = trendFor(b);
+    if (v) {
+      const p = priceOf(b) ?? v.price, s = v.stats.S;
+      if (v.open && v.open.side < 0) {
+        const key = `${b}|short|${v.open.t0}`, mine = S.follow[key] === 1;
+        if (v.action === "平空") { if (S.follow[key] !== 2) exit.push({ sys: "short", b, key, mine, price: p, p0: v.open.p0, side: -1, why: "规则已发出平空信号" }); }
+        else if (mine) hold.push({ sys: "short", b, key, price: p, p0: v.open.p0, side: -1 });
+        else if (v.action === "开空" || v.sinceBars < 12) go.push({ sys: "short", b, v, key, price: p, fresh: v.action === "开空", score: s.n ? s.avg : 0, s });
+      }
+      const last = v.trades.at(-1);
+      if (last && last.side < 0 && NOW - last.t1 < 86400000) { const key = `${b}|short|${last.t0}`; if (S.follow[key] === 1) exit.push({ sys: "short", b, key, mine: true, price: p, p0: last.p0, side: -1, done: last, why: WHY[last.why] }); }
+      if (v.dir < 0 && v.phase === "hot") watch.push({ b, v });
     }
-    const last = v.trades.at(-1);
-    if (last && last.side < 0 && NOW - last.t1 < 86400000) {
-      const key = `${b}|short|${last.t0}`; if (S.follow[key] === 1) exit.push({ b, v, key, mine: true, price, p0: last.p0, done: last });
+    if (t) {
+      const p = priceOf(b) ?? t.price;
+      if (t.open) {
+        const key = `${b}|trend|${t.open.t0}`, mine = S.follow[key] === 1;
+        if (t.exiting) { if (S.follow[key] !== 2) exit.push({ sys: "trend", b, key, mine, price: p, p0: t.open.p0, side: 1, why: trendWhy(t.exiting.why) }); }
+        else if (mine) hold.push({ sys: "trend", b, t, key, price: p, p0: t.open.p0, side: 1 });
+        else if (t.open.days <= 2) go.push({ sys: "trend", b, t, key, price: p, fresh: t.action === "开多", score: 0 });
+      }
+      const last = t.trades.at(-1);
+      if (last && NOW - last.t1 < 2 * 86400000) { const key = `${b}|trend|${last.t0}`; if (S.follow[key] === 1) exit.push({ sys: "trend", b, key, mine: true, price: p, p0: last.p0, side: 1, done: last, why: trendWhy(last.why) }); }
+      if (!t.open && t.side > 0 && p < t.up && t.up / p - 1 < 0.03) twatch.push({ b, t, p });
     }
-    if (v.dir < 0 && v.phase === "hot") watch.push({ b, v });
   }
   const held = hold.length + exit.filter(x => x.mine && !x.done).length, slots = Math.max(0, S.prefs.maxPos - held);
-  go.sort((x, y) => (y.fresh - x.fresh) || (y.score - x.score));
-  const sec = [];
-  if (exit.length) sec.push(`<h3 class="t-exit">该平空</h3>${exit.map(x => {
-    const g = x.done ? x.done.r : 1 - x.price / x.p0 - 2 * FEE;
-    return `<div class="titem"><div class="srow"><b>${x.b}</b><span class="chip loss">平空</span></div>
-      <p>${x.mine ? "你开的这笔空单" : `如果你手里有 ${x.b} 空单，`}规则已发出离场信号${x.done ? `（${md(x.done.t1)}）` : ""}，现在平掉。这笔约 <span class="num ${dir(g)}">${pct(g, 1)}</span>。</p>
-      ${x.mine ? `<div class="follow"><button data-follow="${x.key}" data-v="2">我已平仓</button></div>` : ""}</div>`; }).join("")}`);
-  if (go.length) sec.push(`<h3 class="t-go">可以开空</h3>${slots ? "" : `<p class="why">你已标记持有 ${held} 笔空单，到达上限 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，同时开太多空单等于把风险叠在一起，先不开新的。</p>`}${go.map((x, i) => {
-    const late = x.fresh ? "刚出信号" : `已过 ${followAge(x.v)}${x.v.sinceBars >= 6 ? "，仍可跟进" : ""}`, moved = 1 - x.price / x.v.open.p0;
-    const tag = !slots ? `<span class="chip dnone">满仓不开</span>` : i < slots ? `<span class="chip ddown">${i === 0 ? "优先" : "可开"}</span>` : `<span class="chip dnone">备选</span>`;
-    return `<div class="titem ${!slots || i >= slots ? "dim" : ""}"><div class="srow"><b>${x.b}</b>${tag}</div>
-      <p>${late}${x.fresh ? "" : `，信号价 ${px(x.v.open.p0)}，至今 <span class="num ${dir(moved)}">${moved >= 0 ? "已跌" : "已涨"} ${Math.abs(moved * 100).toFixed(1)}%</span>`}。${x.s.n ? `这个币历史上这样做空 ${x.s.n} 次，胜率 ${x.s.win}%，平均每次 ${sgn(x.s.avg)}。` : ""}</p>
-      ${plan(x.b, x.v, x.price)}${followBtns(x.key)}</div>`; }).join("")}`);
-  if (hold.length) sec.push(`<h3>你持有的空单</h3>${hold.map(x => { const g = 1 - x.price / x.p0 - 2 * FEE;
-    return `<div class="titem"><div class="srow"><b>${x.b}</b><span class="chip open">拿着</span></div>
-      <p>开空 ${px(x.p0)}，至今 <span class="num ${dir(g)}">${pct(g, 1)}</span>。继续拿着，不用动：4 小时收盘站上 <b class="num">${px(x.v.stop)}</b> 止损，RSI 跌到 35 以下（现在 ${x.v.rsi.toFixed(0)}）止盈，出信号会推送。</p></div>`; }).join("")}`);
+  go.sort((x, y) => (health(y.sys).h.factor - health(x.sys).h.factor) || (y.fresh - x.fresh) || (y.score - x.score));
+  const sys = x => `<span class="chip sys">${SYSN[x.sys]}</span>`, sec = [];
+  if (exit.length) sec.push(`<h3 class="t-exit">该平仓</h3>${exit.map(x => {
+    const f = fillOf(x.key), e = f && !f.est ? f.entry : x.p0, r = x.done && !(f && !f.est) ? x.done.r : x.side * (x.price / e - 1) - 2 * FEE;
+    return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip loss">平${sideW(x.side)}</span></span></div>
+      <p>${x.mine ? `你的 ${x.b} ${sideW(x.side)}单` : `如果你手里有 ${x.b} ${sideW(x.side)}单`}：${x.why}${x.done ? `（${md(x.done.t1)}）` : ""}，现在平掉。这笔约 <span class="num ${dir(r)}">${pct(r, 1)}</span>。</p>
+      ${x.mine ? (S.closeEdit === x.key ? exitForm(x.key, x.price) : `<div class="follow"><button data-close="${x.key}">我已平仓</button></div>`) : ""}</div>`; }).join("")}`);
+  if (go.length) sec.push(`<h3 class="t-go">可以开仓</h3>${slots ? "" : `<p class="why">你已标记持有 ${held} 笔，到达上限 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，同时开太多等于把风险叠在一起，先不开新的。</p>`}${go.map((x, i) => {
+    const paused = health(x.sys).h.factor === 0, ok = slots && i < slots && !paused;
+    const tag = paused ? `<span class="chip dnone">策略暂停</span>` : !slots ? `<span class="chip dnone">满仓不开</span>` : i < slots ? `<span class="chip ddown">${i === 0 ? "优先" : "可开"}</span>` : `<span class="chip dnone">备选</span>`;
+    let text, planH;
+    if (x.sys === "short") {
+      const late = x.fresh ? "刚出开空信号" : `已过 ${followAge(x.v)}${x.v.sinceBars >= 6 ? "，仍可跟进" : ""}`, moved = 1 - x.price / x.v.open.p0;
+      text = `${late}${x.fresh ? "" : `，信号价 ${px(x.v.open.p0)}，至今 <span class="num ${dir(moved)}">${moved >= 0 ? "已跌" : "已涨"} ${Math.abs(moved * 100).toFixed(1)}%</span>`}。${x.s.n ? `这个币近 1000 天这样做空 ${x.s.n} 次，胜率 ${x.s.win}%，平均每次 ${sgn(x.s.avg)}。` : ""}`;
+      const L = levelsFor(x.b), tp = L && L.tp && L.tp < x.price ? `<b class="num tp">≈ ${px(L.tp)}</b><i>${pctTo(L.tp, x.price)}，以 4 小时 RSI 跌破 35 为准</i>` : `<b>4 小时 RSI 跌到 35 以下</b>`;
+      planH = planBox(x.b, "short", -1, x.price, x.v.stop, tp);
+    } else {
+      const moved = x.price / x.t.open.p0 - 1;
+      text = `${x.fresh ? "刚出开多信号" : `已过 ${x.t.open.days} 天，信号价 ${px(x.t.open.p0)}，至今 <span class="num ${dir(moved)}">${pct(moved, 1)}</span>，仍可跟进`}：日线收盘突破前 20 日最高价，并且在 200 日均线上方。靠少数大波段赚钱，胜率约 4 成。`;
+      planH = planBox(x.b, "trend", 1, x.price, x.t.open.exitLv ?? x.t.open.stop, tpTrend());
+    }
+    return `<div class="titem ${ok ? "" : "dim"}"><div class="srow"><b>${x.b}</b><span>${sys(x)}${tag}</span></div>
+      <p>${text}</p>${planH}${followBtns(x.key, x.sys === "short" ? x.v.open.p0 : x.t.open.p0)}</div>`; }).join("")}`);
+  if (hold.length) sec.push(`<h3>你的持仓</h3>${hold.map(x => {
+    const f = fillOf(x.key), real = f && !f.est, e = real ? f.entry : x.p0, g = pnl({ side: x.side, entry: e, qty: real ? f.qty : null }, x.price);
+    const lv = x.sys === "short" ? holdLevels(x.b, e, x.price)
+      : `<div class="lv"><span>平仓线</span><b class="sl">${px(x.t.open.exitLv)}</b><i>日线收盘跌破就平；距现价 ${pctTo(x.t.open.exitLv, x.price)}，这笔约 ${pct(x.t.open.exitLv / e - 1 - 2 * FEE, 1)}</i>
+         <span>止盈</span><b class="tp">不固定</b><i>平仓线每天跟着上移，让利润跑</i></div>`;
+    return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip open">拿着</span></span></div>
+      <p>开${sideW(x.side)} ${px(e)}${real && f.qty ? ` × ${f.qty} ${x.b}` : ""}${real ? "（你的成交）" : "（信号价）"}，至今 ${pnlText(g)}。继续拿着，出信号会推送。</p>${lv}
+      ${S.fillEdit === x.key ? fillForm(x.key, x.b, e, null) : `<div class="srow"><button class="link" data-coin="${x.b}">看走势图 ›</button><button class="link" data-fedit="${x.key}">${real ? "修改成交" : "填写实际成交"}</button></div>`}</div>`; }).join("")}`);
   if (watch.length) sec.push(`<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。现在先别提前进场。</p>
     <div class="wlist">${watch.map(x => `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)}</span>`).join("")}</div>`);
+  if (twatch.length) sec.push(`<h3>快要突破（日线趋势）</h3><p class="why">日线收盘（每天早上 8 点）站上这个价就开多并推送，盘中碰到不算。</p>
+    <div class="wlist">${twatch.map(x => `<span><b>${x.b}</b> ${px(x.t.up)}（+${((x.t.up / x.p - 1) * 100).toFixed(1)}%）</span>`).join("")}</div>`);
   const body = sec.length ? sec.join("") : `<p class="none">现在没有要操作的。等推送就行，下一根 4 小时 K 线 ${nextClose4h()}。</p>`;
   return `<section class="todo"><h2 class="th">现在要做的事</h2>${body}
-    <p class="why">开了单就点「我开了这笔」，之后平空提醒和持仓上限才会按你的实际持仓算。只记在这台手机上。</p></section>`;
+    <p class="why">开了单就点「我开了这笔」，可以顺手填实际成交价和数量。记录存在这台设备上，换设备用「设置 → 同步记录」。</p></section>`;
+}
+function trendLine(b) {
+  const t = trendFor(b); if (!t) return "";
+  const p = priceOf(b) ?? t.price, paused = health("trend").h.factor === 0 ? "（策略暂停中，只看不做）" : "";
+  let s;
+  if (t.action === "开多") s = `<b class="up">刚出开多信号</b>，参考 ${px(p)}${paused}`;
+  else if (t.action === "平多") s = `<b>发出平多信号</b>，多单离场`;
+  else if (t.open) s = `<b class="up">持多中</b> ${t.open.days} 天，平仓线 ${px(t.open.exitLv)}（${pctTo(t.open.exitLv, p)}）`;
+  else if (t.side > 0) s = `等日线收盘突破 ${px(t.up)}（还差 ${pctTo(t.up, p)}）${paused}`;
+  else s = `价格在 200 日均线下方，不做多`;
+  return `<p class="tline"><span class="chip sys">日线趋势</span>${s}</p>`;
+}
+function trendBox(b) {
+  const t = trendFor(b); if (!t) return "";
+  const p = priceOf(b) ?? t.price, mine = statsOf(t.trades), { h } = health("trend");
+  const lv = t.open ? `<div class="lv"><span>进场</span><b>${px(t.open.p0)}</b><i>${md(t.open.t0)}</i>
+      <span>初始止损</span><b class="sl">${px(t.open.stop)}</b><i>开仓时价格 − 2 倍日波动</i>
+      ${t.open.exitLv ? `<span>平仓线</span><b class="sl">${px(t.open.exitLv)}</b><i>日线收盘跌破就平；距现价 ${pctTo(t.open.exitLv, p)}</i>` : ""}</div>`
+    : `<div class="lv"><span>突破价</span><b class="tp">${px(t.up)}</b><i>日线收盘站上就开多；距现价 ${pctTo(t.up, p)}</i>
+      <span>200 日均线</span><b>${px(t.e200)}</b><i>${p > t.e200 ? "在上方，可以做多" : "在下方，不做多"}</i></div>`;
+  return `<div class="box"><div class="srow"><h3>日线趋势做多</h3><span class="stw ${h.level}"><i class="dot ${h.level}"></i>${h.word}</span></div>
+    <p>${trendLine(b).replace(/<p class="tline">|<\/p>/g, "")}</p>${lv}
+    <p class="why">规则：日线收盘突破前 20 日最高价、并且在 200 日均线上方就开多；收盘跌破前 10 日最低价（或开仓时的 2 倍波动止损）就平。不猜顶，让利润跑，所以胜率只有 4 成左右，靠少数大涨赚钱。${mine ? `${b} 近几年按这条规则做多 ${mine.n} 次，胜率 ${mine.win}%，平均每次 ${sgn(mine.avg)}。` : ""}</p></div>`;
 }
 function overviewPage() {
-  const pS = pooled(-1), pL = pooled(1), counts = {};
+  const counts = {};
   SYMBOLS.forEach(b => { const v = swingFor(b); if (v) counts[v.action] = (counts[v.action] || 0) + 1; });
-  const sum = Object.keys(counts).length ? `<div class="banner">现在：${Object.entries(counts).map(([a, n]) => `${a} ${n} 个`).join("，")}。<br>这套方法的历史：做空 ${pS ? `${pS.n} 次，胜率 ${pS.win}%，平均每次 ${sgn(pS.avg)}` : "—"}；做多 ${pL ? `${pL.n} 次，胜率 ${pL.win}%，平均每次 ${sgn(pL.avg)}` : "—"}。</div>` : "";
-  return `${headerHTML("数字货币决策台")}${banners()}${todoBox()}${sum}
-    ${[...SYMBOLS].sort((x, y) => rank(x) - rank(y)).map(b => `<button class="card" data-coin="${b}"><div class="ctop">${priceLine(b)}</div>${swingBox(b)}<span class="more">看详细说明 ›</span></button>`).join("")}
-    <p class="foot">指令来自「顺大势、逆小势」：日线定方向，4 小时等反弹做空、等回调做多。历史胜算是过去约 1,000 天的模拟，已扣手续费和资金费，不代表以后一定赚。做多历史上没有优势，目前只提示做空。合约有杠杆，务必设止损、小仓位。</p>`;
+  return `${headerHTML("数字货币决策台")}${banners()}${S.syncMsg ? `<div class="banner">${esc(S.syncMsg)}</div>` : ""}${todoBox()}${statusPanel()}
+    ${[...SYMBOLS].sort((x, y) => rank(x) - rank(y)).map(b => `<button class="card" data-coin="${b}"><div class="ctop">${priceLine(b)}</div>${swingBox(b)}${trendLine(b)}<span class="more">看走势图和详细说明 ›</span></button>`).join("")}
+    <p class="foot">两套系统：4 小时做空（日线向下时，等 4 小时反弹过热再回落开空）和日线趋势做多（突破 20 日新高开多）。历史数字已扣手续费、滑点和资金费，不代表以后一定赚。合约有杠杆，务必设止损、小仓位。</p>`;
 }
 function ruleState(s, tf, b) {
   const price = priceOf(b);
@@ -790,7 +942,7 @@ function detailPage(b) {
       <p class="hist">${ruleHistory(s)}</p></div>`).join("")}</div>`
     : `<div class="empty">${slot?.err ? esc(slot.err) : "正在拉取这个周期的数据…"}</div>`;
   return `${headerHTML("", true)}
-    <div class="ctop big">${priceLine(b)}</div><div class="box">${swingBox(b)}</div>
+    <div class="ctop big">${priceLine(b)}</div>${chartBox()}${levelsBox(b)}<div class="box">${swingBox(b)}</div>${trendBox(b)}
     <div class="box" style="display:none"><div class="verdict ${v.level}">${v.title}</div><p class="vtext">${v.text}</p>${v.latest ? `<p class="latest">${esc(v.latest)}</p>` : ""}</div>
     <button class="oldbtn" data-old="1">${S.oldOpen ? "收起" : "展开"}旧版参考：5 条趋势规则（不用于下单）</button>${S.oldOpen ? `<h2>5 条趋势规则 × 各周期</h2>${matrix}
     <h2>${TF_NAME[tf]}详细说明${t ? `（收盘于 ${md(closeAt(t.last_bar, tf))}）` : ""}</h2>
@@ -817,14 +969,14 @@ function tradeCard(t) {
   const chip = t.exiting ? `<span class="chip loss">该平空</span>` : t.live ? `<span class="chip open">持仓中</span>` : `<span class="chip ${r > 0 ? "win" : "loss"}">${r > 0 ? "赚" : "亏"} ${pct(r, 1)}</span>`;
   const lines = t.live
     ? `<div>至今 <span class="num ${dir(r)}">${pct(r, 2)}</span>（已扣手续费），持有 ${dur(t.since)}${t.exiting ? "，规则已发出平空信号" : t.since >= 12 ? "，超过 2 天，没跟的别再追" : t.since >= 6 ? "，还能跟进" : "，可以跟进"}</div>
-       <div class="when">止损：4 小时收盘站上 <span class="num">${px(t.stop)}</span>　止盈：RSI 跌到 35 以下（现在 ${t.rsi.toFixed(0)}）</div>`
+       <div class="when">止损：4 小时收盘站上 <span class="num">${px(t.stop)}</span>　止盈：RSI 跌到 35 以下（现在 ${t.rsi.toFixed(0)}）${tpText(t.base, t.cur)}</div>`
     : `<div class="when">平空 ${md(t.t1)}　<span class="num">${px(t.p1)}</span>　${WHY[t.why]}</div>
        <div>这笔 <span class="num ${dir(r)}">${pct(r, 2)}</span>（含手续费和资金费），持有 ${dur(t.bars)}</div>`;
   return `<div class="entry">
     <div class="srow"><span class="sname">${t.base} 空单</span>${chip}</div>
     <div class="when">开空 ${md(t.t0)}　<span class="num">${px(t.p0)}</span></div>
     ${lines}
-    <div class="follow"><button data-follow="${t.key}" data-v="1" aria-pressed="${f >= 1}">我跟了</button><button data-follow="${t.key}" data-v="0" aria-pressed="${f === 0}">没跟</button></div>
+    <div class="follow"><button data-follow="${t.key}" data-v="${t.live ? 1 : 2}" data-p0="${t.p0}"${t.live ? "" : ` data-p1="${t.p1}" data-t1="${t.t1}"`} aria-pressed="${f >= 1}">我跟了</button><button data-follow="${t.key}" data-v="0" aria-pressed="${f === 0}">没跟</button></div>
   </div>`;
 }
 function shortPage() {
@@ -838,7 +990,7 @@ function shortPage() {
   const score = `<div class="score"><div><b class="num">${rows.length}</b><span>笔空单${live ? `（${live} 笔持仓中）` : ""}</span></div>
     <div><b class="num">${closed.length ? `${won}/${closed.length}` : "—"}</b><span>已平仓里赚的</span></div>
     <div><b class="num ${avg == null ? "" : dir(avg)}">${avg == null ? "—" : pct(avg, 1)}</b><span>平均每笔</span></div></div>`;
-  const ref = p || mine.length ? `<div class="banner">${p ? `对照：这套方法过去约 1,000 天做空 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}。${p.win < 50 ? "胜率不到一半是正常的，靠赚的几笔比亏的大。" : ""}最近这段明显比它差，就要警惕规则失灵。` : ""}${mine.length ? `<br>你跟了 ${mine.length} 笔已平仓，合计 <b class="${dir(mineSum)}">${pct(mineSum, 1)}</b>（按每笔等额算）。` : ""}</div>` : "";
+  const ref = p || mine.length ? `<div class="banner">${p ? `对照：这套方法近 1000 天做空 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}；2018 年起全历史 ${HIST.short.n} 次，胜率 ${HIST.short.win}%，平均每次 ${sgn(HIST.short.avg)}。${p.win < 50 ? "胜率不到一半是正常的，靠赚的几笔比亏的大。" : ""}最近这段明显比它差，就要警惕规则失灵。` : ""}${mine.length ? `<br>你跟了 ${mine.length} 笔已平仓，合计 <b class="${dir(mineSum)}">${pct(mineSum, 1)}</b>（按每笔等额算）。` : ""}</div>` : "";
   const body = rows.length ? `${score}${ref}<div class="log">${rows.map(tradeCard).join("")}</div>`
     : `<div class="empty">${S.jfilter === "mine" ? "还没有标记「我跟了」的空单。" : `最近 ${JDAYS["4h"]} 天没有做空信号。日线向下的币，要等 4 小时反弹过热再回落才会开空。`}</div>`;
   return `<p class="intro">做空系统最近 ${JDAYS["4h"]} 天的每一笔空单：什么时候开空、什么时候平空、为什么平、赚亏多少。推送里的「开空」「平空」就是这里的同一批信号。你真的下单了，就点「我跟了」。</p>${seg2}${body}`;
@@ -860,7 +1012,7 @@ function dailyPage() {
     }
   }
   ev.sort((x, y) => y.at - x.at);
-  const act = { "-1": "开始只找做空机会", "0": "不做，已有空单按规则离场", "1": "不做（做多没优势，也别逆势做空）" };
+  const act = { "-1": "开始只找做空机会", "0": "不做，已有空单按规则离场", "1": "做空系统不做（别逆势做空），做多看日线趋势" };
   const list = ev.length ? `<div class="log">${ev.map(e => {
     const s = e.tr.reduce((a, t) => a + t.r, 0);
     const right = e.dir < 0 ? e.chg < 0 : e.dir > 0 ? e.chg > 0 : null;
@@ -875,11 +1027,11 @@ function dailyPage() {
     <h2>方向变化记录</h2>${list}`;
 }
 function journalPage() {
-  const tf = S.jtf === "1d" ? "1d" : "4h";
-  const seg = `<div class="seg" role="group" aria-label="周期"><button data-jtf="4h" aria-pressed="${tf === "4h"}">4小时 · 开空平空</button><button data-jtf="1d" aria-pressed="${tf === "1d"}">日线 · 方向</button></div>`;
+  const tf = ["1d", "mine"].includes(S.jtf) ? S.jtf : "4h";
+  const seg = `<div class="seg" role="group" aria-label="周期"><button data-jtf="mine" aria-pressed="${tf === "mine"}">我的实盘</button><button data-jtf="4h" aria-pressed="${tf === "4h"}">4小时做空</button><button data-jtf="1d" aria-pressed="${tf === "1d"}">日线方向</button></div>`;
   const p = S.progress, loading = p.done < p.total ? `<div class="empty">正在拉取行情并计算：${p.done}/${p.total}</div>` : "";
-  return `${headerHTML("信号复盘")}${banners()}<p class="intro"><b>这里都是历史，不用操作。</b>用来检查规则最近准不准、你自己跟单赚亏多少。要操作的看「总览」最上面的「现在要做的事」。</p>${seg}${loading || (tf === "4h" ? shortPage() : dailyPage())}
-    <p class="foot">按 K 线价格计算，进出场各扣 0.1% 手续费和 0.05% 滑点，空单另扣资金费；实际成交会有差别。「我跟了」只保存在这台设备的浏览器里。</p>`;
+  return `${headerHTML("信号复盘")}${banners()}<p class="intro"><b>这里都是历史，不用操作。</b>用来检查规则最近准不准、你自己跟单赚亏多少。要操作的看「总览」最上面的「现在要做的事」。</p>${seg}${tf === "mine" ? myPage() : loading || (tf === "4h" ? shortPage() : dailyPage())}
+    <p class="foot">按 K 线价格计算，进出场各扣 0.1% 手续费和 0.05% 滑点，空单另扣资金费；实际成交会有差别。「我跟了」和实盘记录存在这台设备的浏览器里，换设备用「设置 → 同步记录」。</p>`;
 }
 function settingsPage() {
   const p = S.prefs;
@@ -891,50 +1043,376 @@ function settingsPage() {
       <label class="field">本金（USDT）<input type="number" inputmode="decimal" data-pref="capital" value="${p.capital}"></label>
       <label class="field">每笔最多亏本金的 %<input type="number" inputmode="decimal" step="0.1" data-pref="risk" value="${p.risk}"></label>
       <label class="field">单个币最多占本金的 %<input type="number" inputmode="decimal" data-pref="maxAlloc" value="${p.maxAlloc}"></label>
-      <label class="field">最多同时持有几笔空单<input type="number" inputmode="numeric" data-pref="maxPos" value="${p.maxPos}"></label>
+      <label class="field">最多同时持有几笔（两套系统合计）<input type="number" inputmode="numeric" data-pref="maxPos" value="${p.maxPos}"></label>
       <div class="field">涨跌颜色<div class="seg"><button data-colors="cn" aria-pressed="${p.colors === "cn"}">红涨绿跌</button><button data-colors="west" aria-pressed="${p.colors === "west"}">绿涨红跌</button></div></div>
     </div>
+    ${syncPanel()}
     <h2>数据源</h2>
     <div class="panel">${diag}</div>
     <button class="wide" data-diag="1" ${S.testing ? "disabled" : ""}>${S.testing ? "正在检测…" : "检测所有数据源"}</button>
     <h2>常见问题</h2>
     <div class="prose">
-      <p><b>首页的指令怎么来的？</b>「顺大势、逆小势」：日线趋势向上只做多、向下只做空、不明就不做。下跌趋势里，等 4 小时价格反弹到过热（RSI 升到 65 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。上升趋势里反过来做多。</p>
-      <p><b>为什么只提示做空？</b>在 13 个币、约 1,000 天的检验里，这套方法做空平均每次约 +1.1%，做多平均每次约 -0.4%。做多没有优势，所以只在日线向下时提示做空。日线向上时也不要逆势做空：那种时候做空，历史上 5 次有 4 次亏。</p>
+      <p><b>首页的指令怎么来的？</b>两套系统一起跑。① 4 小时做空：日线向下（收盘在 200 日均线下方、20 日均线低于 50 日均线）的币，等 4 小时反弹到过热（RSI 升到 65 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。② 日线趋势做多：日线收盘突破前 20 日最高价、并且在 200 日均线上方就开多；收盘跌破前 10 日最低价（或开仓时 2 倍波动的止损）就平。</p>
+      <p><b>为什么做空和做多用不同的方法？</b>用 13 个币、2018 年以来的数据检验：4 小时反弹做空在最近两三年赚钱（近 1000 天平均每次约 +1.1%），但 2018～2024 年平均每次约 -0.7%，全历史大约打平；日线突破做多全历史平均每次约 +14%，但 2025 年以来表现差。日线突破做空全历史是亏的，所以不做。两套系统一个做空、一个做多，通常一个好的时候另一个差，合在一起更稳。</p>
+      <p><b>策略状态灯是什么？</b>看每套系统最近 30 笔模拟交易：赚的钱是亏的钱 1.1 倍以上为绿灯，正常开仓；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓，只看不做，已有的单照常按规则离场。系统会继续模拟，表现恢复后自动转回绿灯。灯的变化会推送。</p>
+      <p><b>为什么止损离得太近时提示跳过？</b>4 小时做空的止损在 200 均线，有时离进场价不到 2%。回测里这种单胜率只有 18%，而按「每次最多亏 1%」算出来的仓位反而最大，是亏钱的主要来源。</p>
       <p><b>开空信号出来后，多久还能跟进？</b>2 天内都可以。历史上开空后 1～2 天才跟进，胜率 56%，平均每次 +1.1%，和准时进场差不多；超过 2 天平均只剩 +0.4%，就不建议追了。满 1 天时会推送“跟进提示”。</p>
       <p><b>胜率不到一半，为什么还能赚？</b>这种做法赚的时候平均比亏的时候多，所以胜率 40% 左右也能赚钱。胜率又高又稳定赚钱的短线方法基本不存在；真正要做的是只做顺大势的一边、每次都止损、亏得少，让赚的那几次把钱赚回来。</p>
-      <p><b>做空的风险：</b>历史上最多连亏过 11 次，单次最差约 -8%（不加杠杆）。所以每次最多亏本金的 1%，杠杆不超过 2 倍。</p>
+      <p><b>风险：</b>做空近 1000 天最多连亏过 19 次，单次最差约 -15%（不加杠杆）；趋势做多单次最差约 -25%。所以每次最多亏本金的 1%，做空杠杆不超过 2 倍，做多用现货或 1 倍。</p>
       <p><b>「买卖了 14 次」是谁的交易？</b>不是你的，也不是任何人的真实交易。是历史模拟：假设有人从几年前开始严格按这条规则自动买卖，会买卖多少次、最后赚还是亏。用来判断这条规则过去靠不靠谱。</p>
       <p><b>可信度怎么来的？</b>历史模拟里扣完手续费：赚的钱是亏的钱 1.3 倍以上 →「较可信」；1 到 1.3 倍 →「一般」；亏钱 →「历史上亏钱」；买卖少于 8 次 →「样本太少」。过去靠谱不代表以后一定赚。</p>
       <p><b>首页的结论怎么来的？</b>每个周期只让「较可信」和「一般」的规则投票，过半看多就算看多。然后看日线（大方向）和 4 小时（中期）：都看多 = 趋势向上；只有日线看多 = 回调中；只有 4 小时看多 = 反弹；都看空 = 下跌趋势；其他 = 观望。30 分钟用来判断买点时机。</p>
       <p><b>为什么 5 分钟经常显示「无可靠规则」？</b>周期越短，每次赚的越少，手续费（每次买卖约 0.2%）占的比例越大，大部分规则扣费后都亏钱。5 分钟更适合看入场时机，不适合单独做决定。</p>
       <p><b>行情从哪来？</b>Bybit、OKX、Gate 的免费公开接口（现货 USDT 交易对），不需要账号，也不会碰你的任何账户。主流币在各交易所的价格差通常很小；实际下单在你自己能用的平台上做。</p>
       <p><b>K 线什么时候收盘？</b>信号只在 K 线收盘后更新。日线每天早上 8 点（菲律宾时间）收盘；4 小时线在 0、4、8、12、16、20 点；30 分钟和 5 分钟按整点切分。</p>
-      <p><b>信号记录和推送是什么关系？</b>是同一套做空规则。「复盘」页的 4 小时开空、平空，就是推送里的开空、平空；日线方向变化也会推送。旧的 5 条趋势规则只在币种详情页的「旧版参考」里，不推送，也不用于下单。</p>
-      <p><b>为什么有时候没收到推送？</b>大部分时间没有新信号，不推送是正常的。推送每 15 分钟检查一次，但 GitHub 的免费定时任务偶尔会被推迟几个小时；如果晚了，推送里会注明晚了多久。如果开空后在提醒到达前已经平空，这笔就不再推送。</p>
+      <p><b>推送有哪些？</b>4 小时开空 / 平空 / 满 1 天跟进提示、日线趋势开多 / 平多、日线方向变化、策略状态灯变化。每条开仓推送都写清进场价、止损价、止盈价和建议仓位（占本金的百分比）。所有推送都记在「消息」页。旧的 5 条趋势规则只在币种详情页的「旧版参考」里，不推送，也不用于下单。</p>
+      <p><b>为什么有时候没收到推送？</b>大部分时间没有新信号，不推送是正常的。日线趋势信号一天最多一次（早上 8 点日线收盘后）。推送每 15 分钟检查一次，但 GitHub 的免费定时任务偶尔会被推迟几个小时；如果晚了，推送里会注明晚了多久。如果开空后在提醒到达前已经平空，这笔就不再推送。</p>
     </div>`;
+}
+function tpText(b, ref) {
+  const L = levelsFor(b); if (!L || !L.tp) return "";
+  return L.tp < ref ? `，约跌到 <b class="num">${px(L.tp)}</b> 以下（${pctTo(L.tp, ref)}）` : "，已到止盈区";
+}
+function holdLevels(b, p0, price) {
+  const L = levelsFor(b); if (!L) return "";
+  return `<div class="lv"><span>止损</span><b class="sl">${px(L.stop)}</b><i>4 小时收盘站上就平；距现价 ${pctTo(L.stop, price)}，这笔约 ${pct(1 - L.stop / p0 - 2 * FEE, 1)}</i>
+    ${L.tp && L.tp < price ? `<span>止盈≈</span><b class="tp">${px(L.tp)}</b><i>4 小时收盘跌到它以下；距现价 ${pctTo(L.tp, price)}，这笔约 ${pct(1 - L.tp / p0 - 2 * FEE, 1)}</i>` : `<span>止盈</span><b class="tp">已到</b><i>等收盘后的平空提示</i>`}</div>`;
+}
+// ===== 关键价位：止损 / 止盈估算 / 压力支撑 =====
+// ===== 共用计算：趋势跟踪 / 策略状态 / 止盈估算 / 仓位（网页和推送用同一份）=====
+function trendCalc(k, longOnly = true) {
+  // 日线唐奇安：收盘突破前 20 日最高价且在 200 日均线上方 → 开多（longOnly=false 时，跌破前 20 日最低价且在均线下方 → 开空）
+  // 2018 年起回测：做多 335 次 PF 3.29；做空 390 次 PF 0.79（亏钱），所以默认只做多
+  // 离场：收盘跌破前 10 日最低价（空单为突破前 10 日最高价），或触及开仓时的 2 倍 ATR 止损
+  const D = 86400000, FEE = 0.001, SLIP = 0.0005, FUNDD = 0.0001, W = 200;
+  const { o, h, l, c, ts } = k, n = c.length;
+  if (n < W + 30) return null;
+  const a2 = 2 / 201, e200 = new Float64Array(n), atr = new Float64Array(n);
+  e200[0] = c[0];
+  for (let i = 0; i < n; i++) {
+    if (i) e200[i] = a2 * c[i] + (1 - a2) * e200[i - 1];
+    const tr = i === 0 ? h[0] - l[0] : Math.max(h[i] - l[i], Math.abs(h[i] - c[i - 1]), Math.abs(l[i] - c[i - 1]));
+    atr[i] = i === 0 ? tr : (tr + 19 * atr[i - 1]) / 20;
+  }
+  const hh = (i, m) => { let v = -Infinity; for (let j = i - m; j < i; j++) v = Math.max(v, h[j]); return v; };
+  const ll = (i, m) => { let v = Infinity; for (let j = i - m; j < i; j++) v = Math.min(v, l[j]); return v; };
+  const trades = [], ev = [];
+  let pos = 0, ent = 0, eI = 0, stop = 0, risk = 0, exiting = null, fresh = null;
+  for (let i = W; i < n; i++) {
+    if (pos) {
+      const lv = pos > 0 ? Math.max(ll(i, 10), stop) : Math.min(hh(i, 10), stop);
+      if (pos > 0 ? c[i] < lv : c[i] > lv) {
+        const why = (pos > 0 ? c[i] < stop : c[i] > stop) ? "sl" : "ch";
+        ev.push({ t: ts[i] + D, act: pos > 0 ? "平多" : "平空", price: c[i], why });
+        if (i + 1 < n) {
+          const x = o[i + 1] * (1 - pos * SLIP);
+          trades.push({ side: pos, t0: ts[eI], t1: ts[i + 1], p0: ent, p1: x, r: pos * (x / ent - 1) - 2 * FEE - FUNDD * (i + 1 - eI), bars: i + 1 - eI, risk, why });
+          pos = 0;
+        } else exiting = { side: pos, why, price: c[i] };
+      }
+    }
+    if (!pos) {
+      let s = c[i] > hh(i, 20) ? 1 : c[i] < ll(i, 20) ? -1 : 0;
+      if (s && (s > 0 ? c[i] < e200[i] : c[i] > e200[i])) s = 0;
+      if (longOnly && s < 0) s = 0;
+      if (s) {
+        ev.push({ t: ts[i] + D, act: s > 0 ? "开多" : "开空", price: c[i] });
+        if (i + 1 < n) { pos = s; ent = o[i + 1] * (1 + s * SLIP); eI = i + 1; stop = c[i] - s * 2 * atr[i]; risk = 2 * atr[i] / c[i]; }
+        else fresh = { side: s, price: c[i], stop: c[i] - s * 2 * atr[i] };
+      }
+    }
+  }
+  const L = n - 1, price = c[L];
+  let action = "观望", open = null;
+  if (exiting) { action = exiting.side > 0 ? "平多" : "平空"; open = { side: pos, t0: ts[eI], p0: ent, stop, exitLv: null, days: n - eI }; }
+  else if (pos) { action = pos > 0 ? "持多中" : "持空中"; open = { side: pos, t0: ts[eI], p0: ent, stop, exitLv: pos > 0 ? Math.max(ll(n, 10), stop) : Math.min(hh(n, 10), stop), days: n - eI }; }
+  if (fresh) { action = fresh.side > 0 ? "开多" : "开空"; open = { side: fresh.side, t0: ts[L] + D, p0: price, stop: fresh.stop, exitLv: fresh.stop, days: 0, fresh: true }; }
+  return { action, open, exiting, trades, ev, price, barTs: ts[L], e200: e200[L], atr: atr[L],
+    up: hh(n, 20), dn: ll(n, 20), side: price > e200[L] ? 1 : -1 };
+}
+function healthOf(trades, N = 30) {
+  const t = trades.slice().sort((x, y) => x.t1 - y.t1).slice(-N);
+  if (t.length < 15) return { level: "gray", word: "样本不足", factor: 1, n: t.length };
+  let gw = 0, gl = 0, s = 0; for (const x of t) { s += x.r; if (x.r > 0) gw += x.r; else gl -= x.r; }
+  const pf = gl > 0 ? gw / gl : 9, avg = s / t.length, win = t.filter(x => x.r > 0).length / t.length;
+  const level = pf >= 1.1 ? "green" : pf >= 0.8 ? "yellow" : "red";
+  return { level, pf, avg, win, n: t.length, factor: { green: 1, yellow: 0.5, red: 0 }[level],
+    word: { green: "正常", yellow: "变弱：仓位减半", red: "失灵：暂停新开仓" }[level] };
+}
+function rsiTarget(c, level, n = 14) {
+  const a = 1 / n, L = c.length; let up = 0, dn = 0;
+  for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0);
+    if (i === 1) { up = u; dn = w; } else { up = a * u + (1 - a) * up; dn = a * w + (1 - a) * dn; } }
+  // 下一根收盘价 x = c[L-1] - drop 时，RSI 恰好降到 level
+  const need = (1 - a) * up * (100 - level) / level, drop = (need - (1 - a) * dn) / a;
+  const x = c[L - 1] - Math.max(drop, 0);
+  return x > 0 ? x : null;
+}
+// 建议仓位占本金的比例：每笔最多亏 riskPct%，单币最多 capPct%，再乘策略状态系数
+function sizePct(entry, stop, riskPct = 1, capPct = 40, factor = 1) {
+  const dist = Math.abs(stop / entry - 1);
+  if (!(dist > 0)) return null;
+  return { pct: Math.min(riskPct / dist, capPct) * factor, dist, tight: dist < 0.02 };
+}
+function srLevels(k, look = 180, w = 3) {
+  const n = k.c.length, { h, l, c } = k, from = Math.max(w + 1, n - look);
+  let a = 0; for (let i = Math.max(1, n - 60); i < n; i++) a += Math.max(h[i] - l[i], Math.abs(h[i] - c[i - 1]), Math.abs(l[i] - c[i - 1]));
+  a /= Math.min(59, n - 1);
+  const pts = [];
+  for (let i = from; i < n - w; i++) {
+    let isH = true, isL = true;
+    for (let j = i - w; j <= i + w; j++) { if (h[j] > h[i]) isH = false; if (l[j] < l[i]) isL = false; }
+    if (isH) pts.push({ p: h[i], i }); if (isL) pts.push({ p: l[i], i });
+  }
+  pts.sort((x, y) => x.p - y.p);
+  const cl = [];
+  for (const q of pts) { const g = cl.at(-1); if (g && q.p - g.lo <= 0.8 * a) { g.sum += q.p; g.n++; g.last = Math.max(g.last, q.i); } else cl.push({ sum: q.p, n: 1, lo: q.p, last: q.i }); }
+  const lv = cl.map(g => ({ p: g.sum / g.n, n: g.n })), price = c[n - 1];
+  return { res: lv.filter(x => x.p > price).sort((x, y) => x.p - y.p).slice(0, 3), sup: lv.filter(x => x.p < price).sort((x, y) => y.p - x.p).slice(0, 3) };
+}
+function levelsFor(b) {
+  const v = swingFor(b), k4 = S.coins[b].tf["4h"]?.k; if (!v || !k4) return null;
+  const price = priceOf(b) ?? v.price, open = v.open && v.open.side < 0 && v.action !== "平空" ? v.open : null;
+  return { v, price, open, stop: v.stop, tp: rsiTarget(k4.c, 35), sr: srLevels(k4) };
+}
+const pctTo = (to, from) => pct(to / from - 1, 1);
+function levelsBox(b, compact) {
+  const L = levelsFor(b); if (!L) return "";
+  let { v, price, open, stop, tp, sr } = L;
+  if (open) {
+    const key = `${b}|short|${open.t0}`, mine = S.follow[key] === 1, fl = S.fills[key], real = mine && fl && !fl.est;
+    open = { ...open, p0: real ? fl.entry : open.p0 };
+    const g = 1 - price / open.p0 - 2 * FEE;
+    const tpLine = tp && tp < price ? `<span>止盈（估算）</span><b class="tp">${px(tp)}</b><i>距现价 ${pctTo(tp, price)}，这笔约 ${pct(1 - tp / open.p0 - 2 * FEE, 1)}</i>`
+      : `<span>止盈</span><b class="tp">现在</b><i>RSI 已在 35 以下，收盘后会提示平空</i>`;
+    return `<div class="box"><h3>${mine ? "你这笔空单" : "这笔空单"}的止盈止损</h3>
+      <div class="lv"><span>开空价</span><b>${px(open.p0)}</b><i>${real ? "你的成交价" : md(open.t0)}</i>
+      <span>现价</span><b>${px(price)}</b><i class="${dir(g)}">至今 ${pct(g, 1)}（已扣手续费）</i>
+      <span>止损</span><b class="sl">${px(stop)}</b><i>4 小时收盘站上它就平空；距现价 ${pctTo(stop, price)}，这笔约 ${pct(1 - stop / open.p0 - 2 * FEE, 1)}</i>
+      ${tpLine}</div>
+      <p class="why">止损线就是 4 小时 200 均线，每 4 小时（0/4/8/12/16/20 点）收盘后会微调。止盈价是估算：下一根 4 小时收盘跌到这个价以下，RSI 就会跌破 35，触发止盈；每根 K 线收盘后重新计算。另外日线不再向下时也要平空。看收盘价，不看盘中插针。出信号会推送。</p>
+      ${compact ? `<button class="link" data-coin="${b}">看走势图 ›</button>` : ""}</div>`;
+  }
+  if (compact) return "";
+  const rows = [...sr.res.map(x => ({ ...x, k: "压力", c: "sl" })), ...sr.sup.map(x => ({ ...x, k: "支撑", c: "tp" })), { p: stop, k: "200 均线", c: "", ema: 1 }, { p: price, k: "现价", c: "", now: 1 }].sort((x, y) => y.p - x.p);
+  const row = x => x.now ? `<span>现价</span><b>${px(x.p)}</b><i></i>` : x.ema ? `<span>200 均线</span><b>${px(x.p)}</b><i>距现价 ${pctTo(x.p, price)}，${price > x.p ? "价格在均线上方" : "价格在均线下方"}</i>`
+    : `<span>${x.k}</span><b class="${x.c}">${px(x.p)}</b><i>距现价 ${pctTo(x.p, price)}${x.n > 1 ? `，碰过 ${x.n} 次` : ""}</i>`;
+  return `<div class="box"><h3>关键价位（4 小时）</h3>
+    <div class="lv">${rows.map(row).join("")}</div>
+    <p class="why">压力 / 支撑来自最近 30 天 4 小时 K 线的高低点，碰的次数越多越重要。只是参考位置，不是下单信号。开空后这里会显示这笔的止损价和止盈价。</p></div>`;
+}
+// ===== 走势图（lightweight-charts）=====
+const CH = { host: null, chart: null, key: null, tf: load("ctf", "4h"), p: null };
+function chartLib() {
+  if (window.LightweightCharts) return Promise.resolve();
+  if (!CH.p) CH.p = new Promise((res, rej) => { const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js";
+    s.onload = res; s.onerror = () => { CH.p = null; rej(new Error("图表加载失败")); }; document.head.appendChild(s); });
+  return CH.p;
+}
+function chartBox() {
+  return `<div class="chartbox"><div class="ctl"><div class="seg" role="group" aria-label="图表周期"><button data-ctf="4h" aria-pressed="${CH.tf === "4h"}">4小时</button><button data-ctf="1d" aria-pressed="${CH.tf === "1d"}">日线</button></div><span>双指缩放 · 拖动查看</span></div>
+    <div id="chartSlot" class="chart"></div>
+    <div class="legend"><span><i style="border-color:#E8902A"></i>200 均线${CH.tf === "4h" ? "（空单止损线）" : ""}</span><span><i class="dash" style="border-color:var(--accent)"></i>开空价</span><span><i class="dash" style="border-color:var(--green)"></i>止盈估算</span><span><i class="dash" style="border-color:var(--idle)"></i>压力 / 支撑</span><span>${CH.tf === "4h" ? "▼开空 ▲平空" : "▲趋势开多 ▼平多"}</span></div></div>`;
+}
+async function mountChart(b) {
+  const slot = document.getElementById("chartSlot"); if (!slot) return;
+  const tf = CH.tf, k = S.coins[b].tf[tf]?.k;
+  if (!k) { slot.innerHTML = `<div class="empty">正在加载 K 线…</div>`; return; }
+  try { await chartLib(); } catch (e) { slot.innerHTML = `<div class="empty">图表加载失败，检查网络后刷新。</div>`; return; }
+  const live = document.getElementById("chartSlot"); if (!live) return;
+  const css = getComputedStyle(document.documentElement), V = n => css.getPropertyValue(n).trim();
+  const theme = V("--ink") + V("--surface");
+  if (!CH.host || CH.theme !== theme) {
+    if (CH.chart) CH.chart.remove();
+    CH.host = document.createElement("div"); CH.host.className = "chart"; CH.theme = theme; CH.key = null;
+    const LC = window.LightweightCharts;
+    CH.chart = LC.createChart(CH.host, { autoSize: true, layout: { background: { color: "transparent" }, textColor: V("--muted"), fontSize: 11 },
+      grid: { vertLines: { color: V("--line") + "80" }, horzLines: { color: V("--line") + "80" } },
+      rightPriceScale: { borderVisible: false }, timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+      crosshair: { mode: 0 }, localization: { priceFormatter: p => px(p), timeFormatter: t => md(t * 1000 + new Date().getTimezoneOffset() * 60000) } });
+    CH.candles = CH.chart.addCandlestickSeries({ upColor: V("--up"), downColor: V("--down"), borderVisible: false, wickUpColor: V("--up"), wickDownColor: V("--down"), priceLineVisible: false });
+    CH.ema = CH.chart.addLineSeries({ color: "#E8902A", lineWidth: 2, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false });
+    CH.lines = [];
+  }
+  live.replaceWith(CH.host); CH.host.id = "chartSlot";
+  const v = swingFor(b), L = levelsFor(b), n = k.c.length;
+  const TT = trendFor(b), key = [b, tf, k.ts[n - 1], n, L && L.open ? L.open.t0 : 0, TT && TT.open ? TT.open.t0 + ":" + TT.open.exitLv : 0].join("|");
+  if (CH.key === key) return;
+  const fresh = !CH.key || CH.key.split("|").slice(0, 2).join() !== [b, tf].join();
+  CH.key = key;
+  const off = -new Date().getTimezoneOffset() * 60, T = ms => Math.floor(ms / 1000) + off;
+  const e200 = (() => { const a = 2 / 201, o = new Float64Array(n); o[0] = k.c[0]; for (let i = 1; i < n; i++) o[i] = a * k.c[i] + (1 - a) * o[i - 1]; return o; })();
+  const N = Math.min(n, tf === "4h" ? 300 : 365), s0 = n - N, cand = [], line = [];
+  for (let i = s0; i < n; i++) { cand.push({ time: T(k.ts[i]), open: k.o[i], high: k.h[i], low: k.l[i], close: k.c[i] }); if (i >= 200) line.push({ time: T(k.ts[i]), value: e200[i] }); }
+  CH.candles.setData(cand); CH.ema.setData(line);
+  CH.lines.forEach(pl => CH.candles.removePriceLine(pl)); CH.lines = [];
+  const add = (price, color, title, style = 2, width = 1) => { if (price > 0) CH.lines.push(CH.candles.createPriceLine({ price, color, lineWidth: width, lineStyle: style, axisLabelVisible: true, title })); };
+  const sr = tf === "4h" ? L.sr : srLevels(k, 180, 3), idle = V("--idle");
+  sr.res.slice(0, 2).forEach(x => add(x.p, idle, "压力"));
+  sr.sup.slice(0, 2).forEach(x => add(x.p, idle, "支撑"));
+  if (L && L.open) { const fl = S.fills[`${b}|short|${L.open.t0}`]; add(fl && !fl.est && S.follow[`${b}|short|${L.open.t0}`] === 1 ? fl.entry : L.open.p0, V("--accent"), "开空价", 2, 2); if (L.tp && L.tp < L.price) add(L.tp, V("--green"), "止盈≈", 2, 2); add(L.stop, V("--red"), "止损", 0, 1); }
+  if (tf === "1d" && TT && TT.open) { const fl = S.fills[`${b}|trend|${TT.open.t0}`]; add(fl && !fl.est ? fl.entry : TT.open.p0, V("--accent"), "趋势进场", 2, 2); if (TT.open.exitLv) add(TT.open.exitLv, V("--red"), "平仓线", 0, 1); }
+  if (tf === "1d" && TT && !TT.open && TT.side > 0) add(TT.up, V("--up"), "突破价", 1, 1);
+  // 开空 / 平空标记（只标 4 小时系统的信号）
+  const t0 = k.ts[s0], snap = ms => T(tf === "4h" ? ms : Math.floor(ms / 86400000) * 86400000);
+  const mk = [];
+  for (const t of v.trades) if (t.side < 0 && t.t0 >= t0) { mk.push({ time: snap(t.t0), position: "aboveBar", color: V("--down"), shape: "arrowDown", text: "开空" }); mk.push({ time: snap(t.t1), position: "belowBar", color: V("--accent"), shape: "arrowUp", text: `平 ${pct(t.r, 1)}` }); }
+  if (tf === "1d" && TT) for (const t of TT.trades) if (t.t0 >= t0) { mk.push({ time: snap(t.t0), position: "belowBar", color: V("--up"), shape: "arrowUp", text: "趋势多" }); mk.push({ time: snap(t.t1), position: "aboveBar", color: V("--accent"), shape: "arrowDown", text: `平 ${pct(t.r, 0)}` }); }
+  if (tf === "1d" && TT && TT.open && TT.open.t0 >= t0) mk.push({ time: snap(Math.min(TT.open.t0, k.ts[n - 1])), position: "belowBar", color: V("--up"), shape: "arrowUp", text: "趋势多" });
+  if (L && L.open && L.open.t0 >= t0) mk.push({ time: snap(Math.min(L.open.t0, k.ts[n - 1])), position: "aboveBar", color: V("--down"), shape: "arrowDown", text: "开空" });
+  mk.sort((x, y) => x.time - y.time);
+  const seen = new Set(); CH.candles.setMarkers(mk.filter(m => { const z = m.time + m.position; if (seen.has(z)) return false; seen.add(z); return true; }));
+  if (fresh) { const fit = () => CH.chart.timeScale().setVisibleLogicalRange({ from: cand.length - (tf === "4h" ? 90 : 120), to: cand.length + 3 }); fit(); requestAnimationFrame(() => requestAnimationFrame(fit)); setTimeout(fit, 300); }
+}
+// ===== 推送消息记录 =====
+async function loadAlerts() {
+  try { const a = await getJSON("alerts.json?t=" + Date.now(), 8000); if (Array.isArray(a)) { S.alerts = a; S.alertsErr = null; } }
+  catch (e) { if (!S.alerts) S.alertsErr = e.status === 404 ? "还没有推送记录。" : "消息记录暂时读不到，稍后会自动重试。"; }
+  updateBadge();
+}
+function unseen() { return (S.alerts || []).filter(a => a.t > S.seenAt).length; }
+function updateBadge() {
+  const btn = document.querySelector('nav button[data-tab="msgs"]'); if (!btn) return;
+  const n = S.tab === "msgs" ? 0 : unseen();
+  btn.innerHTML = `消息${n ? `<span class="badge">${n > 99 ? "99+" : n}</span>` : ""}`;
+}
+const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"] };
+function msgsPage() {
+  const list = (S.alerts || []).slice().sort((x, y) => y.t - x.t), seen = S.seenPrev ?? S.seenAt;
+  let day = "", html = "";
+  for (const a of list) {
+    const d = ymd(a.t); if (d !== day) { if (day) html += `</div>`; html += `<div class="msgday">${d}</div><div class="log">`; day = d; }
+    const [kw, kc] = KIND[a.kind] || ["提醒", "dnone"];
+    html += `<div class="msg ${a.t > seen ? "new" : ""}"><div class="srow"><b>${esc(a.title)}</b><span class="chip ${kc}">${kw}</span></div>
+      <p>${esc(a.body)}</p>
+      <div class="srow"><span class="when">${hm(a.t).slice(0, 5)} 推送${a.backfill ? " · 补录" : ""}</span>${a.coin && SYMBOLS.includes(a.coin) ? `<button class="link" data-coin="${esc(a.coin)}">看 ${esc(a.coin)} 走势 ›</button>` : ""}</div></div>`;
+  }
+  if (day) html += `</div>`;
+  const body = list.length ? html : `<div class="empty">${esc(S.alertsErr || (S.alerts ? "还没有推送记录。" : "正在读取消息记录…"))}</div>`;
+  return `${headerHTML("消息")}<p class="intro">手机上 Bark 收到的每条推送都会记在这里，推送后 1～2 分钟出现。点「看走势」进入那个币的 K 线图和止盈止损价。10 月 31 日之前的消息是按记录补录的，只有标题，完整内容以 Bark 为准。</p>${body}`;
+}
+// ===== 我的实盘 =====
+function myPage() {
+  const list = Object.entries(S.fills).map(([key, f]) => ({ key, ...f })).sort((x, y) => (y.exitT || 9e15) - (x.exitT || 9e15) || y.t - x.t);
+  if (!list.length) return `<div class="empty">还没有记录。在「总览 → 现在要做的事」里点「我开了这笔」，或者在 4 小时记录里点「我跟了」，就会出现在这里。</div>`;
+  const closed = list.filter(f => f.exitT), rs = closed.map(f => pnl(f)).filter(Boolean);
+  const won = rs.filter(x => x.r > 0).length, sumU = rs.reduce((a, x) => a + (x.u || 0), 0), hasU = rs.some(x => x.u != null);
+  const avg = rs.length ? rs.reduce((a, x) => a + x.r, 0) / rs.length : null;
+  const score = `<div class="score"><div><b class="num">${closed.length ? `${won}/${closed.length}` : "—"}</b><span>已平仓里赚的</span></div>
+    <div><b class="num ${avg == null ? "" : dir(avg)}">${avg == null ? "—" : pct(avg, 1)}</b><span>平均每笔</span></div>
+    <div><b class="num ${dir(sumU)}">${hasU ? `${sumU >= 0 ? "+" : ""}${sumU.toFixed(1)}` : "—"}</b><span>合计 U（填了数量的）</span></div></div>`;
+  const card = f => {
+    const price = priceOf(f.b), x = pnl(f, price), real = !f.est;
+    return `<div class="entry"><div class="srow"><span class="sname">${f.b} ${sideW(f.side)}单</span><span>${`<span class="chip sys">${SYSN[f.sys] || ""}</span>`}${f.exitT ? `<span class="chip ${x && x.r > 0 ? "win" : "loss"}">${x ? pct(x.r, 1) : "—"}</span>` : `<span class="chip open">持仓中</span>`}</span></div>
+      <div class="when">开${sideW(f.side)} ${md(f.t)}　<span class="num">${px(f.entry)}</span>${f.qty ? `　× ${f.qty}` : ""}${real ? "" : "（信号价）"}</div>
+      <div class="when">${f.exitT ? `平仓 ${md(f.exitT)}　<span class="num">${px(f.exit)}</span>` : `现价 <span class="num">${px(price)}</span>`}</div>
+      <div>${f.exitT ? "这笔" : "至今"} ${pnlText(x)}（已扣手续费）</div>
+      ${S.fillEdit === f.key ? fillForm(f.key, f.b, f.entry, f.qty) : `<div class="srow"><button class="link" data-fedit="${f.key}">修改</button><button class="link" data-fdel="${f.key}">${S.delAsk === f.key ? "再点一次确认删除" : "删除"}</button></div>`}</div>`;
+  };
+  return `<p class="intro">你自己真实开过的单。填了成交价和数量的按你的真实成交算，没填的按信号价估算。</p>${score}<div class="log">${list.map(card).join("")}</div>`;
+}
+// ===== 同步记录（手机 ↔ 电脑）=====
+const PAGE_URL = location.origin + location.pathname;
+function syncCode() {
+  const j = JSON.stringify({ v: 1, follow: S.follow, fills: S.fills, prefs: S.prefs });
+  return btoa(unescape(encodeURIComponent(j))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function importSync(text) {
+  let code = String(text || "").trim(); const m = code.match(/sync=([\w-]+)/); if (m) code = m[1];
+  let b = code.replace(/-/g, "+").replace(/_/g, "/"); while (b.length % 4) b += "=";
+  const d = JSON.parse(decodeURIComponent(escape(atob(b))));
+  if (!d || d.v !== 1) throw new Error("bad");
+  let n = 0;
+  for (const [k, v] of Object.entries(d.follow || {})) { if (S.follow[k] !== v) { S.follow[k] = v; n++; } }
+  for (const [k, f] of Object.entries(d.fills || {})) { const cur = S.fills[k]; if (!cur || (f.u || 0) > (cur.u || 0)) { S.fills[k] = f; n++; } }
+  if (d.prefs) Object.assign(S.prefs, d.prefs);
+  save("follow", S.follow); save("fills", S.fills); save("prefs", S.prefs); applyColors();
+  return n;
+}
+function syncPanel() {
+  return `<h2>同步记录（手机 ↔ 电脑）</h2>
+    <div class="panel"><p class="why" style="margin-top:12px">「我开了这笔」、实盘记录和设置只存在当前设备的浏览器里。换设备时：在这台点「复制同步链接」，发到另一台设备上打开；如果另一台是加到主屏幕的网页，就把链接粘贴到那边的下面这个框里导入。导入是合并，不会删掉原有记录。</p>
+      <button class="wide" data-sync-copy="1">复制同步链接</button>
+      ${S.syncOut ? `<textarea class="synctext" readonly>${esc(S.syncOut)}</textarea><p class="why">没能自动复制，请长按上面的链接全选复制。</p>` : ""}
+      <textarea class="synctext" data-sync-in placeholder="把同步链接或同步码粘贴到这里"></textarea>
+      <button class="wide" data-sync-import="1">导入</button>
+      ${S.syncMsg ? `<p class="why">${esc(S.syncMsg)}</p>` : ""}</div>`;
+}
+function checkHashSync() {
+  if (!location.hash.includes("sync=")) return;
+  try { const n = importSync(location.hash); S.syncMsg = `已从同步链接导入 ${n} 条记录。`; }
+  catch (e) { S.syncMsg = "同步链接不完整，导入失败。请重新复制。"; }
+  history.replaceState(null, "", location.pathname + location.search);
 }
 function render() {
   document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === S.tab ? "page" : "false"));
   const app = document.getElementById("app");
-  if (S.tab === "settings" && app.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
-  app.innerHTML = S.tab === "journal" ? journalPage() : S.tab === "settings" ? settingsPage() : S.view ? detailPage(S.view) : overviewPage();
+  const ae = document.activeElement;
+  if (app.contains(ae) && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
+  app.innerHTML = S.tab === "journal" ? journalPage() : S.tab === "settings" ? settingsPage() : S.tab === "msgs" ? msgsPage() : S.view ? detailPage(S.view) : overviewPage();
+  if (S.tab === "signals" && S.view) mountChart(S.view);
+  updateBadge();
+}
+function openMsgs(first) {
+  if (first) S.seenPrev = S.seenAt;
+  const latest = Math.max(S.seenAt, ...(S.alerts || []).map(a => a.t));
+  S.seenAt = latest; save("seenAt", latest);
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button");
   if (!b) return;
   const d = b.dataset;
-  if (d.tab) { S.tab = d.tab; S.view = null; save("tab", S.tab); render(); window.scrollTo(0, 0); }
-  else if (d.coin) { S.view = d.coin; render(); window.scrollTo(0, 0); }
+  if (d.tab) { S.tab = d.tab; S.view = null; save("tab", S.tab); if (S.tab === "msgs") { openMsgs(true); loadAlerts().then(() => { if (S.tab === "msgs") { openMsgs(); render(); } }); } render(); window.scrollTo(0, 0); }
+  else if (d.coin) { S.tab = "signals"; save("tab", S.tab); S.view = d.coin; render(); window.scrollTo(0, 0); }
+  else if (d.ctf) { CH.tf = d.ctf; save("ctf", CH.tf); render(); }
   else if (d.back) { S.view = null; render(); window.scrollTo(0, 0); }
   else if (d.tf) { S.tf = d.tf; save("tf", S.tf); render(); }
   else if (d.jf) { S.jfilter = d.jf; save("jfilter", S.jfilter); render(); }
   else if (d.jtf) { S.jtf = d.jtf; save("jtf", S.jtf); render(); window.scrollTo(0, 0); }
   else if (d.colors) { S.prefs.colors = d.colors; save("prefs", S.prefs); applyColors(); render(); }
   else if (d.follow) {
-    const v = +d.v;
-    if (S.follow[d.follow] === v) delete S.follow[d.follow]; else S.follow[d.follow] = v;
-    save("follow", S.follow); render();
+    const v = +d.v, k = d.follow, [fb, fsys, ft] = k.split("|");
+    if (S.follow[k] === v) { delete S.follow[k]; if (S.fills[k]?.est) delete S.fills[k]; if (S.fillEdit === k) S.fillEdit = null; }
+    else {
+      S.follow[k] = v;
+      if (v === 0) { if (S.fills[k]?.est) delete S.fills[k]; }
+      else if (!S.fills[k] && d.p0) {
+        S.fills[k] = { b: fb, sys: fsys, side: fsys === "trend" ? 1 : -1, entry: +d.p0, qty: null, t: +ft || Date.now(), est: 1, u: Date.now() };
+        if (d.p1) Object.assign(S.fills[k], { exit: +d.p1, exitT: +d.t1 });
+        if (v === 1 && !d.p1) S.fillEdit = k;
+      }
+    }
+    save("follow", S.follow); save("fills", S.fills); render();
+  }
+  else if (d.fedit) { S.fillEdit = d.fedit; S.closeEdit = null; render(); }
+  else if (d.fcancel) { S.fillEdit = null; S.closeEdit = null; render(); }
+  else if (d.fsave) {
+    const k = d.fsave, q = sel => document.querySelector(`[${sel}="${CSS.escape(k)}"]`), num = el => el && el.value !== "" ? parseFloat(el.value) : null;
+    const f = S.fills[k] || (() => { const [fb, fsys, ft] = k.split("|"); return { b: fb, sys: fsys, side: fsys === "trend" ? 1 : -1, t: +ft || Date.now() }; })();
+    const e = num(q("data-fe")), qty = num(q("data-fq")), x = num(q("data-fx"));
+    if (e > 0) f.entry = e; f.qty = qty > 0 ? qty : null; if (x > 0) f.exit = x;
+    f.est = 0; f.u = Date.now(); S.fills[k] = f; S.fillEdit = null; save("fills", S.fills); render();
+  }
+  else if (d.close) { S.closeEdit = d.close; S.fillEdit = null; render(); }
+  else if (d.xsave) {
+    const k = d.xsave, el = document.querySelector(`[data-fx="${CSS.escape(k)}"]`), x = el && parseFloat(el.value) > 0 ? parseFloat(el.value) : +d.px;
+    const [fb, fsys, ft] = k.split("|");
+    const f = S.fills[k] || { b: fb, sys: fsys, side: fsys === "trend" ? 1 : -1, entry: null, qty: null, t: +ft || Date.now(), est: 1 };
+    Object.assign(f, { exit: x, exitT: Date.now(), u: Date.now() });
+    if (!(f.entry > 0)) { const v = fsys === "trend" ? trendFor(fb) : swingFor(fb), o = v?.open; f.entry = o && o.t0 === +ft ? o.p0 : (v?.trades.find(t => t.t0 === +ft)?.p0 ?? x); }
+    S.fills[k] = f; S.follow[k] = 2; S.closeEdit = null; save("fills", S.fills); save("follow", S.follow); render();
+  }
+  else if (d.fdel) { if (S.delAsk === d.fdel) { delete S.fills[d.fdel]; S.delAsk = null; save("fills", S.fills); } else S.delAsk = d.fdel; render(); }
+  else if (d.syncCopy) {
+    const url = PAGE_URL + "#sync=" + syncCode();
+    S.syncOut = ""; S.syncMsg = "";
+    (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => { S.syncMsg = "同步链接已复制。发到另一台设备上打开，或粘贴到那边的「导入」框里。"; render(); }, () => { S.syncOut = url; render(); });
+  }
+  else if (d.syncImport) {
+    const el = document.querySelector("[data-sync-in]");
+    try { const n = importSync(el ? el.value : ""); S.syncMsg = `导入成功，合并了 ${n} 条记录。`; } catch (e) { S.syncMsg = "同步码不完整，导入失败。请重新复制整段链接。"; }
+    S.syncOut = ""; render();
   }
   else if (d.old) { S.oldOpen = !S.oldOpen; render(); }
   else if (d.diag) diagnose();
@@ -950,13 +1428,14 @@ async function tick() {
   if (Date.now() - lastCandles > 60000 && S.progress.done >= S.progress.total) { lastCandles = Date.now(); await refreshCandles(); }
 }
 async function boot() {
-  applyColors(); render();
+  checkHashSync(); applyColors(); render();
   for (;;) {
     await refreshTicker();
     if (S.srcOk) break;
     render();
     await new Promise(r => setTimeout(r, 30000));
   }
+  loadAlerts(); setInterval(loadAlerts, 120000);
   await loadAllHistory();
   lastCandles = Date.now();
   render();

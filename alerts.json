@@ -1,0 +1,133 @@
+[
+ {
+  "t": 1792843490000,
+  "coin": "XRP",
+  "kind": "close",
+  "title": "XRP 平空",
+  "body": "4 小时 K 线 10月24日 20:00 收盘时出现平空信号。（按推送记录补录，完整内容见 Bark）",
+  "sig": 1792843200000,
+  "backfill": 1
+ },
+ {
+  "t": 1792867561000,
+  "coin": "DOGE",
+  "kind": "close",
+  "title": "DOGE 平空",
+  "body": "4 小时 K 线 10月25日 00:00 收盘时出现平空信号。（按推送记录补录，完整内容见 Bark）",
+  "sig": 1792857600000,
+  "backfill": 1
+ },
+ {
+  "t": 1792903341000,
+  "coin": "ETH",
+  "kind": "dir",
+  "title": "ETH 日线方向变为不明（不做）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1792974880000,
+  "coin": "ADA",
+  "kind": "dir",
+  "title": "ADA 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793147994000,
+  "coin": "SOL",
+  "kind": "dir",
+  "title": "SOL 日线方向变为不明（不做）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793147994000,
+  "coin": "LINK",
+  "kind": "dir",
+  "title": "LINK 日线方向变为不明（不做）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793318866000,
+  "coin": "LTC",
+  "kind": "open",
+  "title": "LTC 开空",
+  "body": "4 小时 K 线 10月30日 08:00 收盘时出现开空信号。（按推送记录补录，完整内容见 Bark）",
+  "sig": 1793318400000,
+  "backfill": 1
+ },
+ {
+  "t": 1793318866000,
+  "coin": "ETH",
+  "kind": "dir",
+  "title": "ETH 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793318866000,
+  "coin": "SOL",
+  "kind": "dir",
+  "title": "SOL 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793318866000,
+  "coin": "LINK",
+  "kind": "dir",
+  "title": "LINK 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793318866000,
+  "coin": "LTC",
+  "kind": "dir",
+  "title": "LTC 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793318866000,
+  "coin": "DOT",
+  "kind": "dir",
+  "title": "DOT 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793410568000,
+  "coin": "LTC",
+  "kind": "follow",
+  "title": "LTC 跟进提示：开空已满 1 天",
+  "body": "（按推送记录补录，完整内容见 Bark）",
+  "backfill": 1
+ },
+ {
+  "t": 1793410568000,
+  "coin": "AVAX",
+  "kind": "dir",
+  "title": "AVAX 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793410568000,
+  "coin": "LINK",
+  "kind": "dir",
+  "title": "LINK 日线方向变为不明（不做）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ },
+ {
+  "t": 1793410568000,
+  "coin": "TRX",
+  "kind": "dir",
+  "title": "TRX 日线方向变为向下（只做空）",
+  "body": "（按推送记录补录）",
+  "backfill": 1
+ }
+]
