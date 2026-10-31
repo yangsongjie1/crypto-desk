@@ -11,7 +11,9 @@
   "XRP|swing|1792828800000|平空",
   "DOGE|swing|1792843200000|平空",
   "LTC|swing|1793304000000|开空",
-  "LTC|follow|1793304000000"
+  "LTC|follow|1793304000000",
+  "TRX|trend|1793318400000|开多",
+  "TRX|trend|1793404800000|平多"
  ],
  "swing": {
   "BTC": {
@@ -67,5 +69,11 @@
    "action": "观望"
   }
  },
- "v3": 1
+ "v3": 1,
+ "health": {
+  "short": "yellow",
+  "trend": "red"
+ },
+ "trendInit": 1,
+ "v4": 1
 }
