@@ -23,10 +23,11 @@ jobs:
           BARK_KEY: ${{ secrets.BARK_KEY }}
       - name: 保存状态
         run: |
-          if [ -f state.json ] && [ -n "$(git status --porcelain state.json)" ]; then
+          if [ -n "$(git status --porcelain state.json alerts.json)" ]; then
             git config user.name "crypto-desk-bot"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add state.json
+            [ -f alerts.json ] && git add alerts.json
             git commit -m "更新盯盘状态"
             git push
           fi
