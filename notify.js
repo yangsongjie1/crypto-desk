@@ -163,7 +163,9 @@ Object.assign(globalThis, { TF_MS, WARMUP, STRATEGIES, analyze });
 const fs = require("fs");
 const KEY = (process.env.BARK_KEY || "").trim().replace(/^https?:\/\/api\.day\.app\//, "").replace(/\/.*$/, "");
 const PAGE = "https://yangsongjie1.github.io/crypto-desk/";
-const SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "LTC", "DOT", "TRX", "BCH"], QUOTE = "USDT";
+// 4 小时做空：13 个主流币；日线趋势做多：38 个币（筛选规则见网页「设置 → 常见问题」）
+const SHORT_SET = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "LTC", "DOT", "TRX", "BCH"], QUOTE = "USDT";
+const SYMBOLS = [...SHORT_SET, "ZEC", "NEAR", "SUI", "PEPE", "WLD", "UNI", "QNT", "AAVE", "FET", "LIT", "INJ", "ARB", "FIL", "HBAR", "TIA", "XLM", "SAND", "APT", "GTC", "RLC", "ICP", "OP", "DASH", "OGN", "SEI"];
 const HISTORY = { "1d": 1000, "4h": 2000 };
 const STEP = { "1d": 86400000, "4h": 14400000 };
 const fmt = p => p >= 1000 ? p.toFixed(2) : p >= 10 ? p.toFixed(3) : p >= 1 ? p.toFixed(4) : p.toFixed(5);
@@ -221,10 +223,10 @@ const SOURCES = [
 ];
 SOURCES.unshift(SOURCES.splice(SOURCES.findIndex(s => s.name === "Gate"), 1)[0]);
 let preferred = 0;
-async function klines(b, tf) {
+async function klines(b, tf, total = HISTORY[tf]) {
   const order = [preferred, ...SOURCES.map((_, i) => i).filter(i => i !== preferred)], errs = [];
   for (const i of order) {
-    try { const r = await SOURCES[i].klines(b, tf, HISTORY[tf]); if (r.length < 400) throw new Error("only " + r.length + " bars"); preferred = i; return [r, SOURCES[i].name]; }
+    try { const r = await SOURCES[i].klines(b, tf, total); if (r.length < Math.min(400, total - 1)) throw new Error("only " + r.length + " bars"); preferred = i; return [r, SOURCES[i].name]; }
     catch (e) { errs.push(SOURCES[i].name + ": " + e.message); }
   }
   throw new Error(errs.join("; "));
@@ -364,16 +366,21 @@ async function push(title, body, important) {
   const R = {};
   for (const b of SYMBOLS) {
     try {
-      const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h"); used.add(s1); used.add(s4);
-      const k4 = toK(r4, "4h"), k1 = toK(r1, "1d"), v = swingCalc(k4, k1);
-      if (v.dir > 0) Object.assign(v, { action: "观望", side: 0 });
-      v.tp = rsiTarget(k4.c, 35);
-      R[b] = { v, t: trendCalc(k1, true) };
+      const short = SHORT_SET.includes(b);
+      const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h", short ? HISTORY["4h"] : 3); used.add(s1); used.add(s4);
+      const k1 = toK(r1, "1d"), price = +r4[r4.length - 1][4];
+      let v = null;
+      if (short) {
+        const k4 = toK(r4, "4h"); v = swingCalc(k4, k1);
+        if (v.dir > 0) Object.assign(v, { action: "观望", side: 0 });
+        v.tp = rsiTarget(k4.c, 35);
+      }
+      R[b] = { v, t: trendCalc(k1, true), price: v ? v.price : price };
     } catch (e) { console.log(b, "拉取失败：", e.message); }
   }
   // 2) 策略状态灯（最近 30 笔）
   const H = {
-    short: healthOf(Object.values(R).flatMap(x => x.v.trades.filter(t => t.side < 0))),
+    short: healthOf(Object.values(R).flatMap(x => x.v ? x.v.trades.filter(t => t.side < 0) : [])),
     trend: healthOf(Object.values(R).flatMap(x => x.t ? x.t.trades : [])),
   };
   const healthInit = !state.health;
@@ -399,63 +406,68 @@ async function push(title, body, important) {
   ].join("\n");
   const trendInit = !state.trendInit; state.trendInit = 1;
   // 3) 逐个币生成推送
+  const trendKnown = new Set(state.trendCoins || (state.trendInit ? SHORT_SET : []));
   for (const b of SYMBOLS) {
     if (!R[b]) continue;
-    const { v, t } = R[b];
-    summary.push(`${b} ${fmt(v.price)}：做空系统${v.action}，日线${dn(v.dir)}${t ? `；趋势${t.action}` : ""}`);
-    const prev = state.swing[b];
-    if (!first && prev && prev.dir !== v.dir)
-      events.push({ coin: b, kind: "dir", dir: v.dir, price: v.price, important: true, title: `${b} 日线方向变为${dn(v.dir)}`, body: `${v.dir > 0 ? "做空系统不做（别逆势做空）" : v.dir < 0 ? "做空系统开始找机会：等 4 小时反弹过热再回落" : "做空系统不做"}。现价 ${fmt(v.price)}。` });
-    // 开空/平空：查最近 24 小时内的所有翻转，不只看最新一根，GitHub 定时任务延迟也不会漏
-    const sentBefore = new Set(sent), H4 = 14400000, NOW = Date.now();
-    v.ev.forEach((e, idx) => {
-      const close = e.t + H4, key = `${b}|swing|${e.t}|${e.act}`;
-      if (NOW - close > 86400000 || sent.has(key)) return;
-      sent.add(key);
-      if (first) return;
-      const lateH = (NOW - close) / 3600000, late = lateH >= 1.5 ? `（延迟 ${Math.round(lateH)} 小时）` : "";
-      if (e.act === "开空") {
-        if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
-        const move = 1 - v.price / e.price;
-        const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}`;
-        events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}`, body });
-        v.justOpened = true;
-      } else {
-        const opened = [...v.ev.slice(0, idx)].reverse().find(x => x.act === "开空");
-        if (opened && NOW - (opened.t + H4) < 86400000 && !sentBefore.has(`${b}|swing|${opened.t}|开空`)) return; // 开空也没提醒过：用户没持仓，不推平空
-        const gain = opened ? 1 - e.price / opened.price - 2 * 0.001 : null;
-        events.push({ coin: b, kind: "close", price: v.price, sigPrice: e.price, sig: close, important: true, title: `${b} 平空 · 4小时做空${late}`,
-          body: `离场原因：${e.why}\n离场价 ${fmt(e.price)}，现价 ${fmt(v.price)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}` });
+    const { v, t, price: px } = R[b], quietTrend = trendInit || !trendKnown.has(b);
+    const sentBefore = new Set(sent);
+    if (!v) summary.push(`${b} ${fmt(px)}：日线趋势${t ? t.action : "—"}`);
+    if (v) {
+      summary.push(`${b} ${fmt(v.price)}：做空系统${v.action}，日线${dn(v.dir)}${t ? `；趋势${t.action}` : ""}`);
+      const prev = state.swing[b];
+      if (!first && prev && prev.dir !== v.dir)
+        events.push({ coin: b, kind: "dir", dir: v.dir, price: v.price, important: true, title: `${b} 日线方向变为${dn(v.dir)}`, body: `${v.dir > 0 ? "做空系统不做（别逆势做空）" : v.dir < 0 ? "做空系统开始找机会：等 4 小时反弹过热再回落" : "做空系统不做"}。现价 ${fmt(v.price)}。` });
+      // 开空/平空：查最近 24 小时内的所有翻转，不只看最新一根，GitHub 定时任务延迟也不会漏
+      const H4 = 14400000, NOW = Date.now();
+      v.ev.forEach((e, idx) => {
+        const close = e.t + H4, key = `${b}|swing|${e.t}|${e.act}`;
+        if (NOW - close > 86400000 || sent.has(key)) return;
+        sent.add(key);
+        if (first) return;
+        const lateH = (NOW - close) / 3600000, late = lateH >= 1.5 ? `（延迟 ${Math.round(lateH)} 小时）` : "";
+        if (e.act === "开空") {
+          if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
+          const move = 1 - v.price / e.price;
+          const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}`;
+          events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}`, body });
+          v.justOpened = true;
+        } else {
+          const opened = [...v.ev.slice(0, idx)].reverse().find(x => x.act === "开空");
+          if (opened && NOW - (opened.t + H4) < 86400000 && !sentBefore.has(`${b}|swing|${opened.t}|开空`)) return; // 开空也没提醒过：用户没持仓，不推平空
+          const gain = opened ? 1 - e.price / opened.price - 2 * 0.001 : null;
+          events.push({ coin: b, kind: "close", price: v.price, sigPrice: e.price, sig: close, important: true, title: `${b} 平空 · 4小时做空${late}`,
+            body: `离场原因：${e.why}\n离场价 ${fmt(e.price)}，现价 ${fmt(v.price)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}` });
+        }
+      });
+      if (v.action === "持空中" && v.sinceBars >= 6 && v.sinceBars < 12 && !v.justOpened) {
+        const key = `${b}|follow|${v.barTs - v.sinceBars * 14400000}`;
+        if (!sent.has(key)) { sent.add(key);
+          if (!first) { const fell = 1 - v.price / v.entry;
+            events.push({ coin: b, kind: "follow", price: v.price, stop: v.stop, tp: v.tp, important: true, title: `${b} 跟进提示：开空已满 1 天`,
+              body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
       }
-    });
-    if (v.action === "持空中" && v.sinceBars >= 6 && v.sinceBars < 12 && !v.justOpened) {
-      const key = `${b}|follow|${v.barTs - v.sinceBars * 14400000}`;
-      if (!sent.has(key)) { sent.add(key);
-        if (!first) { const fell = 1 - v.price / v.entry;
-          events.push({ coin: b, kind: "follow", price: v.price, stop: v.stop, tp: v.tp, important: true, title: `${b} 跟进提示：开空已满 1 天`,
-            body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
     }
     // 日线趋势做多：查最近 2 天的信号
     if (t) t.ev.forEach((e, idx) => {
       const key = `${b}|trend|${e.t}|${e.act}`, NOW2 = Date.now();
       if (NOW2 - e.t > 2 * 86400000 || sent.has(key)) return;
       sent.add(key);
-      if (first || trendInit) return;
+      if (first || quietTrend) return;
       const lateH = (NOW2 - e.t) / 3600000, late = lateH >= 6 ? `（延迟 ${Math.round(lateH)} 小时）` : "";
       if (e.act === "开多") {
         if (t.ev.slice(idx + 1).some(x => x.act === "平多")) return;
-        const p = v.price, stop = t.open && t.open.exitLv ? t.open.exitLv : (t.open ? t.open.stop : e.price - 2 * t.atr);
+        const p = px, stop = t.open && t.open.exitLv ? t.open.exitLv : (t.open ? t.open.stop : e.price - 2 * t.atr);
         events.push({ coin: b, kind: "topen", price: p, sigPrice: e.price, stop, sig: e.t, important: true, title: `${b} 开多 · 日线趋势${late}`,
           body: `进场：现价 ${fmt(p)}（日线收盘 ${fmt(e.price)} 突破前 20 日最高价）\n止损：${fmt(stop)}（${pctS(stop / p - 1)}），日线收盘跌破就平；之后平仓线每天上移（前 10 日最低价）\n止盈：不设固定止盈，让利润跑\n${sizeLine("trend", p, stop, "现货或 1 倍")}` });
       } else {
         const opened = [...t.ev.slice(0, idx)].reverse().find(x => x.act === "开多");
         if (opened && !sentBefore.has(`${b}|trend|${opened.t}|开多`) && NOW2 - opened.t < 2 * 86400000) return;
         const gain = opened ? e.price / opened.price - 1 - 2 * 0.001 : null;
-        events.push({ coin: b, kind: "tclose", price: v.price, sigPrice: e.price, sig: e.t, important: true, title: `${b} 平多 · 日线趋势${late}`,
-          body: `离场原因：${e.why === "sl" ? "日线收盘跌破初始止损" : "日线收盘跌破前 10 日最低价"}\n离场价 ${fmt(e.price)}，现价 ${fmt(v.price)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}` });
+        events.push({ coin: b, kind: "tclose", price: px, sigPrice: e.price, sig: e.t, important: true, title: `${b} 平多 · 日线趋势${late}`,
+          body: `离场原因：${e.why === "sl" ? "日线收盘跌破初始止损" : "日线收盘跌破前 10 日最低价"}\n离场价 ${fmt(e.price)}，现价 ${fmt(px)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}` });
       }
     });
-    state.swing[b] = { dir: v.dir, action: v.action };
+    if (v) state.swing[b] = { dir: v.dir, action: v.action };
   }
   console.log("数据源：", [...used].join("、") || "全部失败");
   console.log(summary.join("\n"));
@@ -463,7 +475,9 @@ async function push(title, body, important) {
   if (first) await push("盯盘已升级：多空指令", summary.join("\n"), false);
   if (!first && !state.v4) await push("盯盘已升级：新增日线趋势做多 + 策略状态灯",
     `两套系统一起跑：4小时做空、日线趋势做多。\n策略状态：4小时做空 ${H.short.word}；日线趋势做多 ${H.trend.word}。\n每条开仓推送都会写清进场、止损、止盈和建议仓位。`, false);
-  state.v3 = 1; state.v4 = 1;
+  if (!first && state.v4 && !state.v5) await push("盯盘已升级：日线趋势做多扩大到 38 个币",
+    `新加 25 个主流币（只跑日线趋势做多，4小时做空仍是原来 13 个币）。\n策略状态：4小时做空 ${H.short.word}；日线趋势做多 ${H.trend.word}。`, false);
+  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.trendCoins = SYMBOLS;
   if (events.length > 6) await push(`${events.length} 条新提醒`, events.map(e => e.title).join("\n"), true);
   else for (const e of events) await push(e.title, e.body, e.important);
   if (!KEY) { console.log("没有设置 BARK_KEY：这次只是试运行，不保存状态。"); return; }
