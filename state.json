@@ -10,7 +10,8 @@
   "BNB|4h|ema_trend|1792771200000|sell",
   "XRP|swing|1792828800000|平空",
   "DOGE|swing|1792843200000|平空",
-  "LTC|swing|1793304000000|开空"
+  "LTC|swing|1793304000000|开空",
+  "LTC|follow|1793304000000"
  ],
  "swing": {
   "BTC": {
@@ -42,11 +43,11 @@
    "action": "观望"
   },
   "AVAX": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "LINK": {
-   "dir": -1,
+   "dir": 0,
    "action": "观望"
   },
   "LTC": {
@@ -58,7 +59,7 @@
    "action": "观望"
   },
   "TRX": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "BCH": {
