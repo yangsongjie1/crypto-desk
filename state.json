@@ -13,7 +13,9 @@
   "LTC|swing|1793304000000|开空",
   "LTC|follow|1793304000000",
   "TRX|trend|1793318400000|开多",
-  "TRX|trend|1793404800000|平多"
+  "TRX|trend|1793404800000|平多",
+  "INJ|trend|1793318400000|平多",
+  "TIA|trend|1793318400000|平多"
  ],
  "swing": {
   "BTC": {
@@ -72,8 +74,49 @@
  "v3": 1,
  "health": {
   "short": "yellow",
-  "trend": "red"
+  "trend": "green"
  },
  "trendInit": 1,
- "v4": 1
+ "v4": 1,
+ "v5": 1,
+ "trendCoins": [
+  "BTC",
+  "ETH",
+  "SOL",
+  "BNB",
+  "XRP",
+  "DOGE",
+  "ADA",
+  "AVAX",
+  "LINK",
+  "LTC",
+  "DOT",
+  "TRX",
+  "BCH",
+  "ZEC",
+  "NEAR",
+  "SUI",
+  "PEPE",
+  "WLD",
+  "UNI",
+  "QNT",
+  "AAVE",
+  "FET",
+  "LIT",
+  "INJ",
+  "ARB",
+  "FIL",
+  "HBAR",
+  "TIA",
+  "XLM",
+  "SAND",
+  "APT",
+  "GTC",
+  "RLC",
+  "ICP",
+  "OP",
+  "DASH",
+  "OGN",
+  "SEI"
+ ]
 }
