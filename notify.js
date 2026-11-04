@@ -247,6 +247,7 @@ function swingCalc(k4, k1) {
   const dir = new Int8Array(n); let j = -1;
   for (let i = 0; i < n; i++) { const ct = k4.ts[i] + H; while (j + 1 < m && k1.ts[j + 1] + D <= ct) j++;
     dir[i] = j < W ? 0 : c1[j] > d200[j] && d20[j] > d50[j] ? 1 : c1[j] < d200[j] && d20[j] < d50[j] ? -1 : 0; }
+  const dage = new Float64Array(n); for (let i = 1; i < n; i++) dage[i] = dir[i] === -1 ? dage[i - 1] + 1 : 0; // 日线连续向下的 4 小时根数
   const want = new Int8Array(n); let s = 0, l = 0;
   for (let i = 1; i < n; i++) {
     if (!s && c[i] < e200[i] && r[i - 1] > 65 && r[i] <= 65) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
@@ -263,15 +264,16 @@ function swingCalc(k4, k1) {
   for (let i = W + 1; i < n; i++) {
     if (want[i] === want[i - 1]) continue;
     if (want[i - 1] === -1) ev.push({ t: k4.ts[i], act: "平空", price: c[i], why: r[i] < 35 ? "止盈（RSI 跌到 35 以下）" : c[i] > e200[i] ? "止损（4小时收盘站上 200 均线）" : "日线不再向下" });
-    if (want[i] === -1) ev.push({ t: k4.ts[i], act: "开空", price: c[i] });
+    if (want[i] === -1) ev.push({ t: k4.ts[i], act: "开空", price: c[i], age: dage[i] / 6, dist: e200[i] / c[i] - 1 });
   }
   const L = n - 1, now = want[L], prev = want[L - 1];
-  let action = "观望", entry = null, sinceBars = null, phase = null;
+  let action = "观望", entry = null, sinceBars = null, phase = null, sigI = L;
   if (now && now !== prev) action = now > 0 ? "开多" : "开空";
-  else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; }
+  else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; sigI = p; }
   else if (prev) action = prev > 0 ? "平多" : "平空";
   else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
-  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, ev, stats: { L: st(1), S: st(-1) } };
+  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, ev, stats: { L: st(1), S: st(-1) },
+    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1 };
 }
 // ===== 共用计算：趋势跟踪 / 策略状态 / 止盈估算 / 仓位（网页和推送用同一份）=====
 function trendCalc(k, longOnly = true) {
@@ -399,6 +401,13 @@ async function push(title, body, important) {
     return `仓位：本金的 ${z.pct.toFixed(0)}%（每笔最多亏 1%），${lev}${h.factor < 1 ? `；策略${h.word}` : ""}` +
       (sys === "short" && z.tight ? `\n⚠ 止损只离 ${(z.dist * 100).toFixed(1)}%，历史上这类单胜率仅 18%，建议跳过或减半` : "");
   };
+  // 信号等级（2026-11-05 回测，和网页同一套）：止损距离 ≥2% + 日线转空 ≤30 天
+  const gradeLine = (dist, age) => {
+    const g = dist < 0.02 ? ["C 级", "止损不到 2%，历史胜率约 2 成，建议跳过"]
+      : age <= 30 ? ["A 级", "历史胜率：近 1000 天 61%，2018–2024 年 54%"]
+      : ["B 级", "历史胜率：近 1000 天 46%，2018–2024 年 38%（老数据整体亏）"];
+    return `等级：${g[0]}（日线转空 ${age < 1 ? "不到 1" : Math.round(age)} 天）· ${g[1]}`;
+  };
   const shortPlan = (v, p) => [
     `止损：${fmt(v.stop)}（${pctS(v.stop / p - 1)}），4小时收盘站上就平`,
     v.tp && v.tp < p ? `止盈：约 ${fmt(v.tp)}（${pctS(v.tp / p - 1)}），以 4小时 RSI 跌破 35 为准` : `止盈：4小时 RSI 已在 35 以下，留意平空提示`,
@@ -428,7 +437,7 @@ async function push(title, body, important) {
         if (e.act === "开空") {
           if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
           const move = 1 - v.price / e.price;
-          const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}`;
+          const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}\n${gradeLine(e.dist, e.age)}`;
           events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}`, body });
           v.justOpened = true;
         } else {
@@ -444,7 +453,7 @@ async function push(title, body, important) {
         if (!sent.has(key)) { sent.add(key);
           if (!first) { const fell = 1 - v.price / v.entry;
             events.push({ coin: b, kind: "follow", price: v.price, stop: v.stop, tp: v.tp, important: true, title: `${b} 跟进提示：开空已满 1 天`,
-              body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
+              body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n${gradeLine(v.sigDist, v.age)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
       }
     }
     // 日线趋势做多：查最近 2 天的信号
