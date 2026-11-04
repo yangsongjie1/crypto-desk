@@ -154,6 +154,7 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .plan div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .plan div:last-child { border-bottom: 0; } .plan span { color: var(--muted); min-width: 9em; } .plan b { font-size: 14px; } .plan i { font-style: normal; color: var(--muted); font-size: 12px; margin-left: auto; }
 .wlist { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; } .wlist span { background: var(--sunk); border-radius: 8px; padding: 4px 9px; font-size: 13px; }
+.wlist span i.wv { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 2px; } .wlist span i.wv b { color: var(--ink); }
 .todo .none { font-size: 15px; margin: 8px 0; } .todo .why { font-size: 12px; color: var(--muted); }
 .chartbox { background: var(--surface); border-radius: 14px; padding: 10px 8px 8px; margin: 10px 0; }
 .chartbox .ctl { display: flex; align-items: center; gap: 8px; padding: 0 4px 6px; }
@@ -717,9 +718,9 @@ const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
 // ===== 做空信号等级（2026-11-05 回测：13 个币 4 小时做空，2018 年起，已扣手续费、滑点、资金费）=====
 // 两个维度事先定好：止损距离（≥2%）、日线转空天数（≤30 天）。日线刚转空时做反弹更容易成功：9 年里有 8 年 A 级好于 B 级
 const GRADE = {
-  A: { k: "A 级", c: "ga", why: "止损距离 2% 以上，日线转空 30 天内", r: [61, 2.7], o: [54, 0.4], tip: "历史上最可靠的一档。" },
-  B: { k: "B 级", c: "gb", why: "止损距离 2% 以上，但日线转空已超过 30 天", r: [46, 1.1], o: [38, -1.8], tip: "2018–2024 年这一档整体是亏的，没有 A 级可靠。" },
-  C: { k: "C 级", c: "gc", why: "止损距离不到 2%", r: [18, -0.3], o: [20, -0.6], tip: "建议跳过。" },
+  A: { k: "A 级（好）", c: "ga", why: "止损距离 2% 以上，日线转空 30 天内", r: [61, 2.7], o: [54, 0.4], tip: "历史上最可靠的一档。" },
+  B: { k: "B 级（一般）", c: "gb", why: "止损距离 2% 以上，但日线转空已超过 30 天", r: [46, 1.1], o: [38, -1.8], tip: "2018–2024 年这一档整体是亏的，没有 A 级可靠。" },
+  C: { k: "C 级（差）", c: "gc", why: "止损距离不到 2%", r: [18, -0.3], o: [20, -0.6], tip: "建议跳过。" },
 };
 const GRADE_RANK = { A: 0, B: 1, C: 2 };
 function gradeOf(v) {
@@ -731,6 +732,10 @@ function gradeHTML(v, preview) {
   const g = gradeOf(v), f = ([w, a]) => `胜率 ${w}%，平均每次 ${sgn(a)}`;
   return `<p class="grade">${preview ? "如果现在发出信号，" : ""}信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}。历史上这一档：近 1000 天${f(g.r)}；2018–2024 年${f(g.o)}。${g.tip}</p>`;
 }
+// 「快要开空」每个币旁边的一句话结论
+const WATCH_VERDICT = { A: "出信号可以做", B: "出信号可做，但不如 A 级", C: "出信号也建议跳过" };
+// 「快要突破」时要不要提前买（2026-11-05 回测：38 个币日线趋势做多，2018 年起，340 次）
+const TREND_EARLY_TIP = "要不要提前买？不建议。历史上「快要突破」之后约 7 成真的突破了，另外 3 成没突破就打到止损，平均每次亏 13%～15%。算下来提前买和等收盘突破总收益差不多（近 1000 天只多 1%），亏损的单子却多了不少，所以等收盘站上再买。";
 // 「快要开空」时要不要提前进（2026-11-05 回测，545 次）
 const EARLY_TIP = "要不要提前进？不建议。历史上「快要开空」之后约 76% 会真的发出开空信号（一般再等 6～8 小时），另外约 24% 价格直接站回 200 均线、信号作废，提前进的话这部分平均亏 3.8%。算下来提前进和等确认赚得差不多（近 1000 天每次都约 +2.5%；2018–2024 年 −0.5% 对 −0.6%），风险却更大，所以等信号确认再进。";
 function needText(v) {
@@ -930,9 +935,9 @@ function todoBox() {
       <p>开${sideW(x.side)} ${px(e)}${real && f.qty ? ` × ${f.qty} ${x.b}` : ""}${real ? "（你的成交）" : "（信号价）"}，至今 ${pnlText(g)}。继续拿着，出信号会推送。</p>${lv}
       ${S.fillEdit === x.key ? fillForm(x.key, x.b, e, null) : `<div class="srow"><button class="link" data-coin="${x.b}">看走势图 ›</button><button class="link" data-fedit="${x.key}">${real ? "修改成交" : "填写实际成交"}</button></div>`}</div>`; }).join("")}`);
   if (watch.length) sec.push(`<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。${EARLY_TIP}后面的等级是按现在的价格预估的。</p>
-    <div class="wlist">${watch.map(x => { const g = gradeOf(x.v); return `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)} · <b class="${g.c === "gc" ? "warnc" : ""}">${g.k}</b></span>`; }).join("")}</div>`);
-  if (twatch.length) sec.push(`<h3>快要突破（日线趋势）</h3><p class="why">日线收盘（每天早上 8 点）站上这个价就开多并推送，盘中碰到不算。</p>
-    <div class="wlist">${twatch.map(x => `<span><b>${x.b}</b> ${px(x.t.up)}（+${((x.t.up / x.p - 1) * 100).toFixed(1)}%）</span>`).join("")}</div>`);
+    <div class="wlist">${watch.map(x => { const g = gradeOf(x.v); return `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)} · <b class="${g.c === "gc" ? "warnc" : ""}">${g.k}</b><i class="wv"><b>别提前跟</b>，${WATCH_VERDICT[g.key]}</i></span>`; }).join("")}</div>`);
+  if (twatch.length) sec.push(`<h3>快要突破（日线趋势）</h3><p class="why">日线收盘（每天早上 8 点）站上这个价就开多并推送，盘中碰到不算。${TREND_EARLY_TIP}</p>
+    <div class="wlist">${twatch.map(x => `<span><b>${x.b}</b> ${px(x.t.up)}（+${((x.t.up / x.p - 1) * 100).toFixed(1)}%）<i class="wv"><b>别提前买</b>，收盘站上再买</i></span>`).join("")}</div>`);
   const body = sec.length ? sec.join("") : `<p class="none">现在没有要操作的。等推送就行，下一根 4 小时 K 线 ${nextClose4h()}。</p>`;
   return `<section class="todo"><h2 class="th">现在要做的事</h2>${body}
     <p class="why">开了单就点「我开了这笔」，可以顺手填实际成交价和数量。记录存在这台设备上，换设备用「设置 → 同步记录」。</p></section>`;
@@ -1133,7 +1138,7 @@ function settingsPage() {
       <p><b>为什么是这 38 个币？</b>规则事先定好、不看回测成绩：币安 30 天日均成交额 500 万美元以上、2023 年 11 月前上市（至少 3 年历史）、有 USDT 永续合约，排除稳定币和黄金。回测里日线趋势做多在新加的 25 个币上同样有效（近 1000 天赚亏比 2.25），币越多越分散，近 1000 天年化从约 4% 提高到约 29%；4 小时做空在新币上明显变弱（赚亏比 1.16，原来 13 个币是 1.57），所以做空只留在原来 13 个币。其他币可以加到「自选观察」看走势，但不发信号。</p>
       <p><b>策略状态灯是什么？</b>看每套系统最近 30 笔模拟交易：赚的钱是亏的钱 1.1 倍以上为绿灯，正常开仓；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓，只看不做，已有的单照常按规则离场。系统会继续模拟，表现恢复后自动转回绿灯。灯的变化会推送。</p>
       <p><b>为什么止损离得太近时提示跳过？</b>4 小时做空的止损在 200 均线，有时离进场价不到 2%。回测里这种单胜率只有 18%，而按「每次最多亏 1%」算出来的仓位反而最大，是亏钱的主要来源。</p>
-      <p><b>信号等级 A / B / C 是什么？</b>每个做空信号按两件事分档：止损距离（离 200 均线有没有 2%）和日线转空了多少天。A 级：止损 2% 以上、日线转空 30 天内，近 1000 天胜率 61%、平均每次 +2.7%，2018–2024 年胜率 54%、平均 +0.4%。B 级：止损 2% 以上、日线转空超过 30 天，近 1000 天胜率 46%、平均 +1.1%，2018–2024 年胜率 38%、平均 −1.8%。C 级：止损不到 2%，胜率不到 2 成，建议跳过。日线刚转空时，反弹之后继续下跌的概率更高；下跌拖得越久，越容易反弹失败。9 年里有 8 年 A 级好于 B 级。等级只是提示，开空、平空的规则没有变。</p>
+      <p><b>信号等级 A / B / C 是什么？</b>A 最好，B 一般，C 最差。每个做空信号按两件事分档：止损距离（离 200 均线有没有 2%）和日线转空了多少天。A 级：止损 2% 以上、日线转空 30 天内，近 1000 天胜率 61%、平均每次 +2.7%，2018–2024 年胜率 54%、平均 +0.4%。B 级：止损 2% 以上、日线转空超过 30 天，近 1000 天胜率 46%、平均 +1.1%，2018–2024 年胜率 38%、平均 −1.8%。C 级：止损不到 2%，胜率不到 2 成，建议跳过。日线刚转空时，反弹之后继续下跌的概率更高；下跌拖得越久，越容易反弹失败。9 年里有 8 年 A 级好于 B 级。等级只是提示，开空、平空的规则没有变。</p>
       <p><b>看到「快要开空」能不能提前进？</b>回测了 545 次「快要开空」：约 76% 之后真的发出开空信号，一般再等 6～8 小时；约 24% 价格直接站回 200 均线、信号作废，提前进的这部分平均亏 3.8%。整体算下来提前进和等确认差不多，风险更大，所以等 4 小时收盘确认再进。</p>
       <p><b>开空信号出来后，多久还能跟进？</b>2 天内都可以。历史上开空后 1～2 天才跟进，胜率 56%，平均每次 +1.1%，和准时进场差不多；超过 2 天平均只剩 +0.4%，就不建议追了。满 1 天时会推送“跟进提示”。</p>
       <p><b>胜率不到一半，为什么还能赚？</b>这种做法赚的时候平均比亏的时候多，所以胜率 40% 左右也能赚钱。胜率又高又稳定赚钱的短线方法基本不存在；真正要做的是只做顺大势的一边、每次都止损、亏得少，让赚的那几次把钱赚回来。</p>
