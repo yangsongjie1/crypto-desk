@@ -136,6 +136,9 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .sw p { margin: 6px 0; font-size: 14px; }
 .odds { font-size: 13px !important; color: var(--muted); background: var(--sunk); border-radius: 8px; padding: 8px 10px; }
 .odds b.up { color: var(--up); } .odds b.down { color: var(--down); }
+.grade { font-size: 13px !important; background: var(--sunk); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+.grade b.ga { color: var(--accent); } .grade b.gb { color: var(--ink); } .grade b.gc { color: #C98A0C; }
+.chip.ga { background: var(--accent); color: #fff; } .chip.gb { background: var(--sunk); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); } .chip.gc { background: var(--sunk); color: #C98A0C; box-shadow: inset 0 0 0 1px #C98A0C; }
 .fol { display: inline-block; padding: 3px 10px; border-radius: 8px; font-size: 14px; font-weight: 700; }
 .fol.ok { background: var(--down); color: #fff; } .fol.no { background: var(--sunk); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--idle); }
 .oldbtn { display: block; width: 100%; margin: 16px 0 8px; border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 10px; font-size: 13px; cursor: pointer; }
@@ -181,6 +184,7 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .stw { font-size: 12px; font-weight: 700; color: var(--muted); } .stw.green { color: #22A86B; } .stw.yellow { color: #C98A0C; } .stw.red { color: #E5484D; }
 .chip.sys { background: var(--sunk); color: var(--muted); font-weight: 600; font-size: 11px; margin-right: 6px; }
 .tline { margin: 8px 0 0; font-size: 13px; color: var(--muted); } .tline .chip { margin-right: 6px; } .tline b { color: var(--ink); } .tline b.up { color: var(--up); }
+.warnc { color: #C98A0C; }
 .warn { color: #C98A0C; font-size: 12px !important; display: block !important; border-bottom: 0 !important; }
 .fill { background: var(--sunk); border-radius: 10px; padding: 2px 10px 8px; margin: 8px 0; }
 .fill .field { padding: 8px 0; font-size: 14px; } .fill .field input { width: 120px; background: var(--surface); }
@@ -668,6 +672,7 @@ function swingCalc(k4, k1) {
   const dir = new Int8Array(n); let j = -1;
   for (let i = 0; i < n; i++) { const ct = k4.ts[i] + H; while (j + 1 < m && k1.ts[j + 1] + D <= ct) j++;
     dir[i] = j < W ? 0 : c1[j] > d200[j] && d20[j] > d50[j] ? 1 : c1[j] < d200[j] && d20[j] < d50[j] ? -1 : 0; }
+  const dage = new Float64Array(n); for (let i = 1; i < n; i++) dage[i] = dir[i] === -1 ? dage[i - 1] + 1 : 0; // 日线连续向下的 4 小时根数
   const want = new Int8Array(n); let s = 0, l = 0;
   for (let i = 1; i < n; i++) {
     if (!s && c[i] < e200[i] && r[i - 1] > 65 && r[i] <= 65) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
@@ -686,12 +691,13 @@ function swingCalc(k4, k1) {
   const st = sd => { const t = trades.filter(x => x.side === sd); if (!t.length) return { n: 0 }; const w = t.filter(x => x.r > 0).length;
     return { n: t.length, w, win: Math.round(100 * w / t.length), avg: 100 * t.reduce((a, x) => a + x.r, 0) / t.length }; };
   const L = n - 1, now = want[L], prev = want[L - 1];
-  let action = "观望", entry = null, sinceBars = null, phase = null;
+  let action = "观望", entry = null, sinceBars = null, phase = null, sigI = L;
   if (now && now !== prev) action = now > 0 ? "开多" : "开空";
-  else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; }
+  else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; sigI = p; }
   else if (prev) action = prev > 0 ? "平多" : "平空";
   else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
-  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, open, ddir, stats: { L: st(1), S: st(-1) } };
+  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, open, ddir, stats: { L: st(1), S: st(-1) },
+    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1 };
 }
 const SW = {};
 function swingFor(b) {
@@ -708,12 +714,31 @@ function pooled(side) {
   return n ? { n, win: Math.round(100 * w / n), avg: 100 * s / n } : null;
 }
 const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
+// ===== 做空信号等级（2026-11-05 回测：13 个币 4 小时做空，2018 年起，已扣手续费、滑点、资金费）=====
+// 两个维度事先定好：止损距离（≥2%）、日线转空天数（≤30 天）。日线刚转空时做反弹更容易成功：9 年里有 8 年 A 级好于 B 级
+const GRADE = {
+  A: { k: "A 级", c: "ga", why: "止损距离 2% 以上，日线转空 30 天内", r: [61, 2.7], o: [54, 0.4], tip: "历史上最可靠的一档。" },
+  B: { k: "B 级", c: "gb", why: "止损距离 2% 以上，但日线转空已超过 30 天", r: [46, 1.1], o: [38, -1.8], tip: "2018–2024 年这一档整体是亏的，没有 A 级可靠。" },
+  C: { k: "C 级", c: "gc", why: "止损距离不到 2%", r: [18, -0.3], o: [20, -0.6], tip: "建议跳过。" },
+};
+const GRADE_RANK = { A: 0, B: 1, C: 2 };
+function gradeOf(v) {
+  const dist = v.action === "持空中" ? v.sigDist : v.stop / v.price - 1, key = dist < 0.02 ? "C" : v.age <= 30 ? "A" : "B";
+  return { key, ...GRADE[key], dist, age: v.age };
+}
+const ageW = a => a < 1 ? "不到 1 天" : `${Math.round(a)} 天`;
+function gradeHTML(v, preview) {
+  const g = gradeOf(v), f = ([w, a]) => `胜率 ${w}%，平均每次 ${sgn(a)}`;
+  return `<p class="grade">${preview ? "如果现在发出信号，" : ""}信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}。历史上这一档：近 1000 天${f(g.r)}；2018–2024 年${f(g.o)}。${g.tip}</p>`;
+}
+// 「快要开空」时要不要提前进（2026-11-05 回测，545 次）
+const EARLY_TIP = "要不要提前进？不建议。历史上「快要开空」之后约 76% 会真的发出开空信号（一般再等 6～8 小时），另外约 24% 价格直接站回 200 均线、信号作废，提前进的话这部分平均亏 3.8%。算下来提前进和等确认赚得差不多（近 1000 天每次都约 +2.5%；2018–2024 年 −0.5% 对 −0.6%），风险却更大，所以等信号确认再进。";
 function needText(v) {
   const r = v.rsi.toFixed(0);
   if (v.phase === "nolong") return "日线向上，4 小时做空系统不做：日线向上时做空，历史上 5 次有 4 次亏。做多机会看下面的日线趋势。";
   if (v.phase === "nodir") return "日线方向不明（不是明确的上升或下降趋势），这时候不做。";
   if (v.phase === "wrongside") return v.dir < 0 ? `日线向下，但 4 小时价格还在 200 均线（${px(v.stop)}）上方，等跌回均线下方再找做空机会。` : `日线向上，但 4 小时价格还在 200 均线（${px(v.stop)}）下方，等站回均线上方再找做多机会。`;
-  if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 65 以下就会发出开空信号。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
+  if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 65 以下就会发出开空信号。<br>先别提前进：约 1/4 的「快要开空」最后会作废，提前进的这部分平均亏 3.8%，整体也不比等确认赚得多。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
   return v.dir < 0 ? `等反弹：4 小时 RSI 升到 65 以上再回落时开空（现在 RSI ${r}）。` : `等回调：4 小时 RSI 跌到 35 以下再回升时开多（现在 RSI ${r}）。`;
 }
 function followAge(v) { const h = v.sinceBars * 4; return h < 24 ? `${h} 小时` : `${(h / 24).toFixed(1).replace(/\.0$/, "")} 天`; }
@@ -755,8 +780,9 @@ function swingBox(b) {
   if (v.phase === "nolong") odds = "日线向上时 4 小时做空系统不做（逆势做空历史上 5 次有 4 次亏）。做多看「日线趋势」那一行。";
   else if (sd) { const s = v.stats[sd > 0 ? "L" : "S"], p = pooled(sd), nm = sd > 0 ? "做多" : "做空";
     odds = s.n ? `近 1000 天：${b} 用这个方法${nm} ${s.n} 次，赚 ${s.w} 次（胜率 ${s.win}%），平均每次 <b class="${dir(s.avg)}">${sgn(s.avg)}</b>${p ? `。${SHORT_SET.length} 个币合计 ${p.n} 次，胜率 ${p.win}%，平均每次 ${sgn(p.avg)}` : ""}。` : `${b} 历史上这种${nm}机会太少，没有参考数据。`; }
+  const gradeH = active && v.side < 0 ? gradeHTML(v) : v.phase === "hot" && v.dir < 0 ? gradeHTML(v, true) : "";
   return `<div class="sw"><div class="swtop"><span class="act ${cls}">${v.action}</span>${followTag(v)}<span class="swdir">${dirLine}</span></div>
-    <p class="vtext">${now}</p>${levels}<p class="odds">${odds}</p></div>`;
+    <p class="vtext">${now}</p>${levels}${gradeH}<p class="odds">${odds}</p></div>`;
 }
 const rankT = b => { const t = trendFor(b); if (!t) return 9; const p = priceOf(b) ?? t.price;
   if (t.action === "开多") return 0.5; if (t.action === "平多") return 1.5; if (t.open) return 2.5 + Math.min(t.open.days, 99) / 1000;
@@ -851,7 +877,7 @@ function todoBox() {
         const key = `${b}|short|${v.open.t0}`, mine = S.follow[key] === 1;
         if (v.action === "平空") { if (S.follow[key] !== 2) exit.push({ sys: "short", b, key, mine, price: p, p0: v.open.p0, side: -1, why: "规则已发出平空信号" }); }
         else if (mine) hold.push({ sys: "short", b, key, price: p, p0: v.open.p0, side: -1 });
-        else if (v.action === "开空" || v.sinceBars < 12) go.push({ sys: "short", b, v, key, price: p, fresh: v.action === "开空", score: s.n ? s.avg : 0, s });
+        else if (v.action === "开空" || v.sinceBars < 12) go.push({ sys: "short", b, v, key, price: p, fresh: v.action === "开空", score: s.n ? s.avg : 0, s, g: gradeOf(v) });
       }
       const last = v.trades.at(-1);
       if (last && last.side < 0 && NOW - last.t1 < 86400000) { const key = `${b}|short|${last.t0}`; if (S.follow[key] === 1) exit.push({ sys: "short", b, key, mine: true, price: p, p0: last.p0, side: -1, done: last, why: WHY[last.why] }); }
@@ -871,7 +897,8 @@ function todoBox() {
     }
   }
   const held = hold.length + exit.filter(x => x.mine && !x.done).length, slots = Math.max(0, S.prefs.maxPos - held);
-  go.sort((x, y) => (health(y.sys).h.factor - health(x.sys).h.factor) || (y.fresh - x.fresh) || (y.score - x.score));
+  const gr = x => x.g ? GRADE_RANK[x.g.key] : 0;
+  go.sort((x, y) => (health(y.sys).h.factor - health(x.sys).h.factor) || (gr(x) - gr(y)) || (y.fresh - x.fresh) || (y.score - x.score));
   const sys = x => `<span class="chip sys">${SYSN[x.sys]}</span>`, sec = [];
   if (exit.length) sec.push(`<h3 class="t-exit">该平仓</h3>${exit.map(x => {
     const f = fillOf(x.key), e = f && !f.est ? f.entry : x.p0, r = x.done && !(f && !f.est) ? x.done.r : x.side * (x.price / e - 1) - 2 * FEE;
@@ -892,8 +919,8 @@ function todoBox() {
       text = `${x.fresh ? "刚出开多信号" : `已过 ${x.t.open.days} 天，信号价 ${px(x.t.open.p0)}，至今 <span class="num ${dir(moved)}">${pct(moved, 1)}</span>，仍可跟进`}：日线收盘突破前 20 日最高价，并且在 200 日均线上方。靠少数大波段赚钱，胜率约 4 成。`;
       planH = planBox(x.b, "trend", 1, x.price, x.t.open.exitLv ?? x.t.open.stop, tpTrend());
     }
-    return `<div class="titem ${ok ? "" : "dim"}"><div class="srow"><b>${x.b}</b><span>${sys(x)}${tag}</span></div>
-      <p>${text}</p>${planH}${followBtns(x.key, x.sys === "short" ? x.v.open.p0 : x.t.open.p0)}</div>`; }).join("")}`);
+    return `<div class="titem ${ok ? "" : "dim"}"><div class="srow"><b>${x.b}</b><span>${sys(x)}${x.g ? `<span class="chip ${x.g.c}">${x.g.k}</span>` : ""}${tag}</span></div>
+      <p>${text}</p>${x.sys === "short" ? gradeHTML(x.v) : ""}${planH}${followBtns(x.key, x.sys === "short" ? x.v.open.p0 : x.t.open.p0)}</div>`; }).join("")}`);
   if (hold.length) sec.push(`<h3>你的持仓</h3>${hold.map(x => {
     const f = fillOf(x.key), real = f && !f.est, e = real ? f.entry : x.p0, g = pnl({ side: x.side, entry: e, qty: real ? f.qty : null }, x.price);
     const lv = x.sys === "short" ? holdLevels(x.b, e, x.price)
@@ -902,8 +929,8 @@ function todoBox() {
     return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip open">拿着</span></span></div>
       <p>开${sideW(x.side)} ${px(e)}${real && f.qty ? ` × ${f.qty} ${x.b}` : ""}${real ? "（你的成交）" : "（信号价）"}，至今 ${pnlText(g)}。继续拿着，出信号会推送。</p>${lv}
       ${S.fillEdit === x.key ? fillForm(x.key, x.b, e, null) : `<div class="srow"><button class="link" data-coin="${x.b}">看走势图 ›</button><button class="link" data-fedit="${x.key}">${real ? "修改成交" : "填写实际成交"}</button></div>`}</div>`; }).join("")}`);
-  if (watch.length) sec.push(`<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。现在先别提前进场。</p>
-    <div class="wlist">${watch.map(x => `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)}</span>`).join("")}</div>`);
+  if (watch.length) sec.push(`<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。${EARLY_TIP}后面的等级是按现在的价格预估的。</p>
+    <div class="wlist">${watch.map(x => { const g = gradeOf(x.v); return `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)} · <b class="${g.c === "gc" ? "warnc" : ""}">${g.k}</b></span>`; }).join("")}</div>`);
   if (twatch.length) sec.push(`<h3>快要突破（日线趋势）</h3><p class="why">日线收盘（每天早上 8 点）站上这个价就开多并推送，盘中碰到不算。</p>
     <div class="wlist">${twatch.map(x => `<span><b>${x.b}</b> ${px(x.t.up)}（+${((x.t.up / x.p - 1) * 100).toFixed(1)}%）</span>`).join("")}</div>`);
   const body = sec.length ? sec.join("") : `<p class="none">现在没有要操作的。等推送就行，下一根 4 小时 K 线 ${nextClose4h()}。</p>`;
@@ -1106,6 +1133,8 @@ function settingsPage() {
       <p><b>为什么是这 38 个币？</b>规则事先定好、不看回测成绩：币安 30 天日均成交额 500 万美元以上、2023 年 11 月前上市（至少 3 年历史）、有 USDT 永续合约，排除稳定币和黄金。回测里日线趋势做多在新加的 25 个币上同样有效（近 1000 天赚亏比 2.25），币越多越分散，近 1000 天年化从约 4% 提高到约 29%；4 小时做空在新币上明显变弱（赚亏比 1.16，原来 13 个币是 1.57），所以做空只留在原来 13 个币。其他币可以加到「自选观察」看走势，但不发信号。</p>
       <p><b>策略状态灯是什么？</b>看每套系统最近 30 笔模拟交易：赚的钱是亏的钱 1.1 倍以上为绿灯，正常开仓；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓，只看不做，已有的单照常按规则离场。系统会继续模拟，表现恢复后自动转回绿灯。灯的变化会推送。</p>
       <p><b>为什么止损离得太近时提示跳过？</b>4 小时做空的止损在 200 均线，有时离进场价不到 2%。回测里这种单胜率只有 18%，而按「每次最多亏 1%」算出来的仓位反而最大，是亏钱的主要来源。</p>
+      <p><b>信号等级 A / B / C 是什么？</b>每个做空信号按两件事分档：止损距离（离 200 均线有没有 2%）和日线转空了多少天。A 级：止损 2% 以上、日线转空 30 天内，近 1000 天胜率 61%、平均每次 +2.7%，2018–2024 年胜率 54%、平均 +0.4%。B 级：止损 2% 以上、日线转空超过 30 天，近 1000 天胜率 46%、平均 +1.1%，2018–2024 年胜率 38%、平均 −1.8%。C 级：止损不到 2%，胜率不到 2 成，建议跳过。日线刚转空时，反弹之后继续下跌的概率更高；下跌拖得越久，越容易反弹失败。9 年里有 8 年 A 级好于 B 级。等级只是提示，开空、平空的规则没有变。</p>
+      <p><b>看到「快要开空」能不能提前进？</b>回测了 545 次「快要开空」：约 76% 之后真的发出开空信号，一般再等 6～8 小时；约 24% 价格直接站回 200 均线、信号作废，提前进的这部分平均亏 3.8%。整体算下来提前进和等确认差不多，风险更大，所以等 4 小时收盘确认再进。</p>
       <p><b>开空信号出来后，多久还能跟进？</b>2 天内都可以。历史上开空后 1～2 天才跟进，胜率 56%，平均每次 +1.1%，和准时进场差不多；超过 2 天平均只剩 +0.4%，就不建议追了。满 1 天时会推送“跟进提示”。</p>
       <p><b>胜率不到一半，为什么还能赚？</b>这种做法赚的时候平均比亏的时候多，所以胜率 40% 左右也能赚钱。胜率又高又稳定赚钱的短线方法基本不存在；真正要做的是只做顺大势的一边、每次都止损、亏得少，让赚的那几次把钱赚回来。</p>
       <p><b>风险：</b>做空近 1000 天最多连亏过 19 次，单次最差约 -15%（不加杠杆）；趋势做多单次最差约 -25%。所以每次最多亏本金的 1%，做空杠杆不超过 2 倍，做多用现货或 1 倍。</p>
