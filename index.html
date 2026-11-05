@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="决策台">
 <meta name="theme-color" content="#E6EAEF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E131A" media="(prefers-color-scheme: dark)">
-<title>数字货币决策台</title>
+<title>AlphaDesk · 个人量化决策中心</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
@@ -191,15 +191,127 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .fill .field { padding: 8px 0; font-size: 14px; } .fill .field input { width: 120px; background: var(--surface); }
 .synctext { display: block; width: 100%; min-height: 64px; margin: 8px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); color: var(--ink); font: 12px/1.4 ui-monospace, Menlo, monospace; padding: 8px; word-break: break-all; }
 .seg button { white-space: nowrap; }
+
+/* AlphaDesk 2.0 — desktop-first responsive trading terminal */
+.mk-do{color:#dce8f6 !important;font-size:14.5px !important;margin:0 0 8px !important}.mk-do b{color:#fff}
+.ad-hero.mk-bear{border-color:#7a3446;background:radial-gradient(circle at 80% -30%,#8b2c4a66,transparent 42%),linear-gradient(117deg,#2a1823,#101b2b 78%)}
+.ad-hero.mk-bull{border-color:#2a6b57;background:radial-gradient(circle at 80% -30%,#2c8b6a66,transparent 42%),linear-gradient(117deg,#14302a,#101b2b 78%)}
+.mk-facts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:14px}.mk-facts div{background:#0b1727b5;border:1px solid #29405d;border-radius:10px;padding:8px 12px}.mk-facts label{display:block;font-size:11px;color:#96a9be}.mk-facts b{font:700 17px var(--num);color:#f1f6fd}
+.ad-fold{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:12px 16px;margin:18px 0}.ad-fold summary{cursor:pointer;font-weight:600;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}.ad-fold summary .ad-small{font-weight:400}
+@media(max-width:760px){.mk-facts{grid-template-columns:repeat(3,minmax(0,1fr))}.mk-facts div{padding:6px 8px}.mk-facts b{font-size:15px}}
+.ad-coins{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:12px;align-items:start}.ad-coins .card{margin:0}.ad-coins .oldbtn{grid-column:1/-1}
+@media(max-width:760px){.ad-coins{grid-template-columns:1fr}}
+.carry .srow{margin-bottom:6px}
+:root { --bg:#090e17; --surface:#121b29; --sunk:#0d1521; --ink:#e9f0fa; --muted:#8c9bb0; --line:#253247; --accent:#65a2ff; --green:#2cd5a0; --red:#fa7185; --up:#2cd5a0; --down:#fa7185; color-scheme:dark; }
+@media (prefers-color-scheme:dark) { :root { --bg:#090e17; --surface:#121b29; --sunk:#0d1521; --ink:#e9f0fa; --muted:#8c9bb0; --line:#253247; --accent:#65a2ff; --green:#2cd5a0; --red:#fa7185; --up:#2cd5a0; --down:#fa7185; } }
+:root.west { --up:#2cd5a0; --down:#fa7185; }
+body {background:radial-gradient(ellipse 600px 350px at 62% -140px,#18325255,transparent),var(--bg);padding:0 22px 40px 264px;font-size:14px;}
+.wrap { max-width:1510px; padding:0 10px; }
+header {padding:30px 0 23px;align-items:center}
+header h1 {font-size:25px;letter-spacing:-.5px}
+nav {position:fixed;left:0;top:0;bottom:0;right:auto;width:244px;display:flex;flex-direction:column;align-items:stretch;gap:5px;border:0;border-right:1px solid var(--line);padding:25px 13px;background:#0b121e;z-index:5}
+nav button {text-align:left;padding:13px 17px;border-radius:10px;flex:none;font-size:14px;display:flex;gap:13px;align-items:center}
+nav button[aria-current="page"] {color:#e5f2ff;background:#1c324c;box-shadow:inset 3px 0 0 var(--accent)}
+.navbrand {display:flex;align-items:center;gap:12px;padding:0 8px 36px;font-size:17px;letter-spacing:1.7px;font-weight:800;line-height:1.1}
+.navbrand small {font-size:9px;letter-spacing:2px;color:var(--muted);font-weight:500;display:block;margin-top:5px}
+.brand-logo {width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#66aeff,#3e62d0);color:white;font:700 30px Georgia}
+.navfoot {margin-top:auto;padding:12px 14px;font-size:12px;color:#9ba8b9;border-top:1px solid var(--line)}
+.navfoot small {color:#65778e;font-size:11px}
+.card,.box,.status,.todo,.panel,.chartbox,.log,.score {background:var(--surface);border:1px solid var(--line);box-shadow:0 8px 30px #03070d17}
+.card:hover {border-color:#557394} .todo {box-shadow:none}
+.stamp {font-size:12px} .live {box-shadow:0 0 0 4px #2cd5a01d}
+.ad-eyebrow {font-size:11px;letter-spacing:1.8px;font-weight:750;color:#76a7ed;margin-bottom:4px}
+.ad-sub {font-size:13px;color:var(--muted);margin-top:4px}
+.ad-topline {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:21px}
+.ad-small {font-size:12px;color:var(--muted)}
+.ad-pill {padding:5px 10px;border-radius:100px;background:#172c3c;color:#7bd8bb;font-size:12px;font-weight:700;border:1px solid #245341}
+.ad-pill.dim {background:#292434;color:#dfb27c;border-color:#5c4532}
+.ad-pill.neutral {background:#1b2636;color:#9eb1cd;border-color:#34445d}
+.ad-hero {border:1px solid #29436a;border-radius:19px;background:radial-gradient(circle at 80% -30%,#2c578b88,transparent 42%),linear-gradient(117deg,#182a42,#101b2b 78%);padding:24px 26px 22px;margin-bottom:18px;position:relative;overflow:hidden}
+.ad-hero:after {content:'';position:absolute;width:280px;height:280px;border:1px solid #5897d121;border-radius:50%;right:-110px;top:-145px;pointer-events:none}
+.ad-hero-head {display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.ad-hero h2 {color:var(--ink);font-size:24px;line-height:1.4;margin:14px 0 8px;letter-spacing:-.4px}
+.ad-hero p {color:#a9b9cc;max-width:900px;margin:0 0 17px;font-size:13px;line-height:1.8}
+.ad-hero-foot {display:flex;flex-wrap:wrap;gap:9px}
+.ad-mini {background:#0b1727b5;padding:11px 15px;border:1px solid #29405d;border-radius:11px;min-width:155px;flex:1}
+.ad-mini label {display:block;color:#96a9be;font-size:11px}
+.ad-mini b {font:700 19px var(--num);color:#f1f6fd;display:block;margin-top:3px}
+.ad-mini small {font-size:11px;color:#87a2c2}
+.ad-kpis {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:21px}
+.ad-kpi {padding:17px 19px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.ad-kpi label {color:var(--muted);font-size:12px;display:block}
+.ad-kpi strong {display:block;font:700 24px var(--num);margin:10px 0 3px}
+.ad-kpi small {color:var(--muted);font-size:11px}
+.ad-section-head {display:flex;align-items:center;justify-content:space-between;gap:10px;margin:25px 0 11px}
+.ad-section-head h2 {color:var(--ink);font-size:17px;font-weight:750;margin:0}
+.ad-section-head p {color:var(--muted);font-size:12px;margin:0}
+.ad-columns {display:grid;grid-template-columns:minmax(0,1.43fr) minmax(310px,1fr);gap:16px}
+.ad-panel {padding:18px;border-radius:15px;background:var(--surface);border:1px solid var(--line);min-width:0}
+.ad-panel h3 {font-size:15px;margin-bottom:10px}
+.ad-placeholder {font-size:13px;color:var(--muted);padding:25px 13px;text-align:center;background:var(--sunk);border-radius:10px;border:1px dashed var(--line)}
+.ad-table {width:100%;border-collapse:collapse;font-size:13px}
+.ad-table th {font-size:11px;color:var(--muted);font-weight:550;text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}
+.ad-table td {padding:13px 8px;border-bottom:1px solid #243044;vertical-align:middle}
+.ad-table tr:last-child td {border-bottom:0}
+.ad-table button,.ad-action {border:1px solid #345c86;background:#193451;color:#9cc8ff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:12px}
+.ad-table button:hover,.ad-action:hover {background:#245078}
+.ad-strong {font-size:14px;font-weight:750}
+.ad-tag {font-size:11px;color:#a6bbce;background:#223044;padding:4px 8px;border-radius:6px;white-space:nowrap}
+.ad-tag.short {background:#482b39;color:#ff9eae}.ad-tag.long {background:#1a453b;color:#74e1bb}
+.ad-pos {color:#42d7a9}.ad-neg {color:#ff8294}
+.ad-queue {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ad-opportunity {background:#0e1826;border:1px solid #26354b;border-radius:12px;padding:15px;min-width:0}
+.ad-opportunity h3 {margin:0;font:700 19px var(--num)}
+.ad-opportunity .ad-line {display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+.ad-opportunity p {font-size:12px;color:#a6b4c6;margin:8px 0;line-height:1.7}
+.ad-steps {display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.ad-step {background:#182439;padding:8px;border-radius:8px}
+.ad-step span {display:block;font-size:10px;color:#99aac0}
+.ad-step b {font:650 15px var(--num);display:block;margin-top:4px}
+.ad-buttons {display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.ad-buttons button {border:1px solid #425875;background:#192a40;color:#c5ddf6;border-radius:8px;padding:8px 11px;cursor:pointer;font-size:12px}
+.ad-buttons button.primary {background:#386dc0;border-color:#386dc0;color:white}
+.ad-framework {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.ad-framework > div {border:1px solid var(--line);background:var(--surface);border-radius:13px;padding:17px}
+.ad-framework b {display:block;margin-bottom:7px}.ad-framework p {font-size:12px;line-height:1.75;color:var(--muted);margin:0}
+.ad-footer {font-size:12px;color:var(--muted);margin:18px 0 22px;line-height:1.8}
+.ad-strats {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.ad-strat {border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:18px;min-width:0}
+.ad-strat-title {font-size:17px;font-weight:750;margin:10px 0 8px}
+.ad-strat p {font-size:12px;line-height:1.8;color:var(--muted)}
+.ad-research-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.ad-research-card {border:1px solid var(--line);background:var(--surface);border-radius:13px;padding:18px}
+.ad-research-card a {color:#83bbff;text-decoration:none;font-size:12px}
+.ad-research-card h3 {font-size:15px;margin:6px 0}
+.ad-research-card p {color:var(--muted);font-size:12px;line-height:1.7}
+.ad-research-card .tagline {font-size:11px;letter-spacing:.7px;color:#7e9bc0}
+.ad-select,.ad-input {background:#0d1724;color:var(--ink);border:1px solid #3a4b60;border-radius:8px;padding:9px;max-width:100%;font-size:13px}
+.ad-labform {display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.ad-labform label {font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+.ad-note {margin-top:12px;background:#101e2b;border:1px solid #2c4560;padding:12px;border-radius:10px;font-size:12px;line-height:1.7;color:#afc5dc}
+.ad-flow {display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:13px}
+.ad-flow > div {background:#101b2b;border:1px solid #2d3a4e;border-radius:9px;padding:11px;font-size:12px}
+.ad-flow b {display:block;color:#c6dfff;font-size:12px}.ad-flow small {color:var(--muted);font-size:10px}
+.ad-flow span {display:block;color:#8dacd2;font:700 19px var(--num);margin-bottom:5px}
+.ad-compare {display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.ad-compare div {background:#0d1724;border-radius:10px;padding:13px;font-size:12px;color:#b7c9df}
+.ad-compare strong {display:block;font:750 22px var(--num);color:#fff;margin-top:6px}
+.ad-table-scroll {overflow-x:auto}
+@media(max-width:1150px){body{padding-left:210px}nav{width:193px}.ad-columns{grid-template-columns:1fr}.ad-kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){body{padding:0 11px 90px}.wrap{padding:0 2px}nav{top:auto;right:0;bottom:0;width:100%;height:auto;flex-direction:row;padding:5px 4px env(safe-area-inset-bottom,5px);border-top:1px solid var(--line);border-right:0;gap:0}nav button{flex:1;display:block;text-align:center;padding:9px 2px;font-size:16px}nav button span{display:block;font-size:10px;margin-top:2px}nav button[aria-current="page"]{box-shadow:inset 0 2px 0 var(--accent)}.navbrand,.navfoot{display:none}header{padding:19px 3px 15px}header h1{font-size:21px}.ad-hero{padding:18px}.ad-hero h2{font-size:20px}.ad-hero-foot{display:grid;grid-template-columns:repeat(2,1fr)}.ad-mini{min-width:0}.ad-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ad-kpi{padding:13px}.ad-kpi strong{font-size:22px}.ad-queue,.ad-strats,.ad-research-grid,.ad-framework,.ad-compare{grid-template-columns:1fr}.ad-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.ad-panel{padding:12px}.ad-table{min-width:550px}.ad-topline{align-items:flex-start}}
+
 </style>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">正在连接行情…</div></div>
 <nav>
-  <button data-tab="signals">总览</button>
-  <button data-tab="msgs">消息</button>
-  <button data-tab="journal">复盘</button>
-  <button data-tab="settings">设置</button>
+  <div class="navbrand"><span class="brand-logo">α</span><span>ALPHADESK<small>PERSONAL QUANT</small></span></div>
+  <button data-tab="signals">◈ <span>决策工作台</span></button>
+  <button data-tab="research">⌁ <span>策略研究</span></button>
+  <button data-tab="journal">▤ <span>交易复盘</span></button>
+  <button data-tab="msgs">◉ <span>消息中心</span></button>
+  <button data-tab="settings">⚙ <span>系统设置</span></button>
+  <div class="navfoot">交易纪律优先 · 数据驱动<br><small>只在验证后执行真实交易</small></div>
 </nav>
 <script>
 (function ENGINE() {
@@ -469,6 +581,7 @@ const S = {
   coins: Object.fromEntries(SYMBOLS.map(b => [b, { price: null, change: null, tf: {} }])),
   progress: { done: 0, total: SYMBOLS.length + SHORT_SET.length }, diag: null, testing: false,
   watch: load("watch", []), watchMsg: "",
+  fund: {},
 };
 S.watch.forEach(w => { if (!S.coins[w]) S.coins[w] = { price: null, change: null, tf: {} }; });
 window.__desk = S;
@@ -508,6 +621,28 @@ async function diagnose() {
     render();
   }));
   S.testing = false; render();
+}
+// ----- 资金费率（2026-11-06 回测）：过去 7 天结算记录，依次试 Binance 合约、Gate、OKX -----
+async function fundingOf(b) {
+  const since = Date.now() - 7 * 86400000, tries = [
+    async () => (await getJSON(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${b}${QUOTE}&startTime=${since}&limit=100`)).map(x => [+x.fundingTime, +x.fundingRate]),
+    async () => (await getJSON(`https://api.gateio.ws/api/v4/futures/usdt/funding_rate?contract=${b}_${QUOTE}&limit=60`)).map(x => [+x.t * 1000, +x.r]),
+    async () => (await getJSON(`https://www.okx.com/api/v5/public/funding-rate-history?instId=${b}-${QUOTE}-SWAP&limit=60`)).data.map(x => [+x.fundingTime, +(x.realizedRate || x.fundingRate)]),
+  ];
+  for (const f of tries) {
+    try {
+      const r = (await f()).filter(x => x[0] >= since && isFinite(x[1])).sort((a, c) => a[0] - c[0]);
+      if (r.length < 3) continue;
+      const last3 = r.slice(-3), days = Math.max((Date.now() - r[0][0]) / 86400000, 1);
+      // now：最近 3 次结算平均（回测口径）；carry：买现货 + 等量空单的本金年化（一半现货一半保证金）
+      return { now: last3.reduce((s, x) => s + x[1], 0) / 3, carry: r.reduce((s, x) => s + x[1], 0) / days * 365 * 0.5, u: Date.now() };
+    } catch (e) {}
+  }
+  return null;
+}
+async function loadFunding() {
+  await Promise.all(SHORT_SET.map(async b => { const f = await fundingOf(b); if (f) S.fund[b] = f; }));
+  render();
 }
 function parseKlines(rows, tf, now) {
   rows = rows.filter(r => r[0] + TF_MS[tf] <= now);
@@ -706,7 +841,7 @@ function swingFor(b) {
   const c4 = S.coins[b].tf["4h"], c1 = S.coins[b].tf["1d"];
   if (!c4?.k || !c1?.k) return null;
   const key = c4.k.ts.at(-1) + "|" + c1.k.ts.at(-1) + "|" + c4.k.c.length;
-  if (SW[b]?.key !== key) { const v = swingCalc(c4.k, c1.k); if (v.dir > 0 && v.action !== "平空") Object.assign(v, { action: "观望", side: 0, phase: "nolong" }); SW[b] = { key, v }; }
+  if (SW[b]?.key !== key) { const v = swingCalc(c4.k, c1.k); if (v.dir > 0 && v.action !== "平空") Object.assign(v, { action: "观望", side: 0, phase: "nolong" }); v.b = b; SW[b] = { key, v }; }
   return SW[b].v;
 }
 function pooled(side) {
@@ -723,14 +858,19 @@ const GRADE = {
   C: { k: "C 级（差）", c: "gc", why: "止损距离不到 2%", r: [18, -0.3], o: [20, -0.6], tip: "建议跳过。" },
 };
 const GRADE_RANK = { A: 0, B: 1, C: 2 };
+// 2026-11-06 加：资金费率 ≤0（空头在付钱）时 A 级降为 B 级。回测里这种 A 级只有 B 级水平（近 1000 天胜率 50%，2018–2024 年 44%）
+const GRADE_DOWN = { k: "B 级（一般）", c: "gb", r: [50, 0.9], o: [44, -1.6], tip: "本来是 A 级，但资金费率为负（空头在付钱），历史上这种单只有 B 级的水平，所以降一级。" };
 function gradeOf(v) {
-  const dist = v.action === "持空中" ? v.sigDist : v.stop / v.price - 1, key = dist < 0.02 ? "C" : v.age <= 30 ? "A" : "B";
-  return { key, ...GRADE[key], dist, age: v.age };
+  const dist = v.action === "持空中" ? v.sigDist : v.stop / v.price - 1, f = S.fund[v.b];
+  let key = dist < 0.02 ? "C" : v.age <= 30 ? "A" : "B";
+  if (key === "A" && f && f.now <= 0) return { key: "B", ...GRADE_DOWN, down: true, dist, age: v.age, f };
+  return { key, ...GRADE[key], dist, age: v.age, f };
 }
 const ageW = a => a < 1 ? "不到 1 天" : `${Math.round(a)} 天`;
+const fundW = f => f ? `资金费率 ${(f.now * 100).toFixed(4)}%（${f.now > 0 ? "多头在付钱" : "空头在付钱"}）` : "资金费率暂时取不到";
 function gradeHTML(v, preview) {
   const g = gradeOf(v), f = ([w, a]) => `胜率 ${w}%，平均每次 ${sgn(a)}`;
-  return `<p class="grade">${preview ? "如果现在发出信号，" : ""}信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}。历史上这一档：近 1000 天${f(g.r)}；2018–2024 年${f(g.o)}。${g.tip}</p>`;
+  return `<p class="grade">${preview ? "如果现在发出信号，" : ""}信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}，${fundW(g.f)}。历史上这一档：近 1000 天${f(g.r)}；2018–2024 年${f(g.o)}。${g.tip}</p>`;
 }
 // 「快要开空」每个币旁边的一句话结论
 const WATCH_VERDICT = { A: "出信号可以做", B: "出信号可做，但不如 A 级", C: "出信号也建议跳过" };
@@ -835,6 +975,18 @@ function statusPanel() {
   return `<section class="status"><h2 class="th2">策略状态</h2>${row("short")}${row("trend")}
     <p class="why">看最近 30 笔模拟交易：赚的是亏的 1.1 倍以上为绿灯；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓（已有的单照常按规则离场）。状态变化会推送。两套系统一个做空、一个做多，通常一个好的时候另一个差，所以一起跑。</p></section>`;
 }
+// 资金费率套利（2026-11-06 回测）：本金一半买现货、一半开等量空单，只收资金费。过去 7 天年化 ≥10% 才值得做
+function carryPanel() {
+  const list = SHORT_SET.filter(b => S.fund[b]).map(b => ({ b, ...S.fund[b] })).sort((x, y) => y.carry - x.carry);
+  if (!list.length) return "";
+  const word = c => c >= 0.10 ? ["值得考虑", "win"] : c >= 0.05 ? ["一般", "dnone"] : c > 0 ? ["不值得", "dnone"] : ["倒贴钱", "loss"];
+  const main = ["BTC", "ETH"].filter(b => S.fund[b]).map(b => { const f = S.fund[b], [w, c] = word(f.carry);
+    return `<div class="srow"><span><b>${b}</b> 年化 <b class="num ${dir(f.carry)}">${pct(f.carry, 1)}</b></span><span class="chip ${c}">${w}</span></div>`; }).join("");
+  const others = list.filter(x => x.b !== "BTC" && x.b !== "ETH").map(x => `<span><b>${x.b}</b> ${pct(x.carry, 1)}</span>`).join("");
+  return `<div class="carry">${main}
+    <div class="wlist">${others}</div>
+    <p class="why">做法：一半本金买现货、一半做保证金开等量空单（1 倍），不管涨跌只收资金费。上面是按过去 7 天资金费率折算的本金年化。回测：2021 年牛市 BTC 全年约 15%，2023 年以后只有 2%～6%，小币经常是负的。年化 10% 以上才值得做，BTC、ETH 到了会推送，跌回 5% 以下提醒结束。主要看 BTC、ETH，小币资金费率变化快、容易转负。</p></div>`;
+}
 function tpTrend() { return `<b>不设固定止盈</b><i>平仓线每天上移（前 10 日最低价），日线收盘跌破就平</i>`; }
 function planBox(b, sys, side, entry, stop, tpHTML) {
   const { capital, risk, maxAlloc } = S.prefs, h = health(sys).h, dist = side < 0 ? stop - entry : entry - stop;
@@ -870,8 +1022,8 @@ function pnl(f, price) {
   return { r, u: f.qty ? f.qty * f.entry * f.side * (exit / f.entry - 1) - f.qty * (f.entry + exit) * FEE : null };
 }
 function pnlText(x) { return x ? `<span class="num ${dir(x.r)}">${pct(x.r, 1)}</span>${x.u != null ? `（<span class="num ${dir(x.u)}">${x.u >= 0 ? "+" : ""}${x.u.toFixed(1)} U</span>）` : ""}` : "—"; }
-function todoBox() {
-  if (S.progress.done < S.progress.total) return "";
+function todoBox(asParts) {
+  if (S.progress.done < S.progress.total) return asParts ? null : "";
   const NOW = Date.now(), go = [], exit = [], hold = [], watch = [], twatch = [];
   const trendWhy = w => w === "sl" ? "日线收盘跌破初始止损" : "日线收盘跌破前 10 日最低价";
   for (const b of SYMBOLS) {
@@ -904,13 +1056,13 @@ function todoBox() {
   const held = hold.length + exit.filter(x => x.mine && !x.done).length, slots = Math.max(0, S.prefs.maxPos - held);
   const gr = x => x.g ? GRADE_RANK[x.g.key] : 0;
   go.sort((x, y) => (health(y.sys).h.factor - health(x.sys).h.factor) || (gr(x) - gr(y)) || (y.fresh - x.fresh) || (y.score - x.score));
-  const sys = x => `<span class="chip sys">${SYSN[x.sys]}</span>`, sec = [];
-  if (exit.length) sec.push(`<h3 class="t-exit">该平仓</h3>${exit.map(x => {
+  const sys = x => `<span class="chip sys">${SYSN[x.sys]}</span>`, sec = [], P = {};
+  if (exit.length) (P.exit = `<h3 class="t-exit">该平仓</h3>${exit.map(x => {
     const f = fillOf(x.key), e = f && !f.est ? f.entry : x.p0, r = x.done && !(f && !f.est) ? x.done.r : x.side * (x.price / e - 1) - 2 * FEE;
     return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip loss">平${sideW(x.side)}</span></span></div>
       <p>${x.mine ? `你的 ${x.b} ${sideW(x.side)}单` : `如果你手里有 ${x.b} ${sideW(x.side)}单`}：${x.why}${x.done ? `（${md(x.done.t1)}）` : ""}，现在平掉。这笔约 <span class="num ${dir(r)}">${pct(r, 1)}</span>。</p>
       ${x.mine ? (S.closeEdit === x.key ? exitForm(x.key, x.price) : `<div class="follow"><button data-close="${x.key}">我已平仓</button></div>`) : ""}</div>`; }).join("")}`);
-  if (go.length) sec.push(`<h3 class="t-go">可以开仓</h3>${slots ? "" : `<p class="why">你已标记持有 ${held} 笔，到达上限 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，同时开太多等于把风险叠在一起，先不开新的。</p>`}${go.map((x, i) => {
+  if (go.length) (P.go = `<h3 class="t-go">可以开仓</h3>${slots ? "" : `<p class="why">你已标记持有 ${held} 笔，到达上限 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，同时开太多等于把风险叠在一起，先不开新的。</p>`}${go.map((x, i) => {
     const paused = health(x.sys).h.factor === 0, ok = slots && i < slots && !paused;
     const tag = paused ? `<span class="chip dnone">策略暂停</span>` : !slots ? `<span class="chip dnone">满仓不开</span>` : i < slots ? `<span class="chip ddown">${i === 0 ? "优先" : "可开"}</span>` : `<span class="chip dnone">备选</span>`;
     let text, planH;
@@ -926,7 +1078,7 @@ function todoBox() {
     }
     return `<div class="titem ${ok ? "" : "dim"}"><div class="srow"><b>${x.b}</b><span>${sys(x)}${x.g ? `<span class="chip ${x.g.c}">${x.g.k}</span>` : ""}${tag}</span></div>
       <p>${text}</p>${x.sys === "short" ? gradeHTML(x.v) : ""}${planH}${followBtns(x.key, x.sys === "short" ? x.v.open.p0 : x.t.open.p0)}</div>`; }).join("")}`);
-  if (hold.length) sec.push(`<h3>你的持仓</h3>${hold.map(x => {
+  if (hold.length) (P.hold = `<h3>你的持仓</h3>${hold.map(x => {
     const f = fillOf(x.key), real = f && !f.est, e = real ? f.entry : x.p0, g = pnl({ side: x.side, entry: e, qty: real ? f.qty : null }, x.price);
     const lv = x.sys === "short" ? holdLevels(x.b, e, x.price)
       : `<div class="lv"><span>平仓线</span><b class="sl">${px(x.t.open.exitLv)}</b><i>日线收盘跌破就平；距现价 ${pctTo(x.t.open.exitLv, x.price)}，这笔约 ${pct(x.t.open.exitLv / e - 1 - 2 * FEE, 1)}</i>
@@ -934,10 +1086,12 @@ function todoBox() {
     return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip open">拿着</span></span></div>
       <p>开${sideW(x.side)} ${px(e)}${real && f.qty ? ` × ${f.qty} ${x.b}` : ""}${real ? "（你的成交）" : "（信号价）"}，至今 ${pnlText(g)}。继续拿着，出信号会推送。</p>${lv}
       ${S.fillEdit === x.key ? fillForm(x.key, x.b, e, null) : `<div class="srow"><button class="link" data-coin="${x.b}">看走势图 ›</button><button class="link" data-fedit="${x.key}">${real ? "修改成交" : "填写实际成交"}</button></div>`}</div>`; }).join("")}`);
-  if (watch.length) sec.push(`<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。${EARLY_TIP}后面的等级是按现在的价格预估的。</p>
+  if (watch.length) (P.watch = `<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。${EARLY_TIP}后面的等级是按现在的价格预估的。</p>
     <div class="wlist">${watch.map(x => { const g = gradeOf(x.v); return `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)} · <b class="${g.c === "gc" ? "warnc" : ""}">${g.k}</b><i class="wv"><b>别提前跟</b>，${WATCH_VERDICT[g.key]}</i></span>`; }).join("")}</div>`);
-  if (twatch.length) sec.push(`<h3>快要突破（日线趋势）</h3><p class="why">日线收盘（每天早上 8 点）站上这个价就开多并推送，盘中碰到不算。${TREND_EARLY_TIP}</p>
+  if (twatch.length) (P.twatch = `<h3>快要突破（日线趋势）</h3><p class="why">日线收盘（每天早上 8 点）站上这个价就开多并推送，盘中碰到不算。${TREND_EARLY_TIP}</p>
     <div class="wlist">${twatch.map(x => `<span><b>${x.b}</b> ${px(x.t.up)}（+${((x.t.up / x.p - 1) * 100).toFixed(1)}%）<i class="wv"><b>别提前买</b>，收盘站上再买</i></span>`).join("")}</div>`);
+  if (asParts) return P;
+  ["exit", "go", "hold", "watch", "twatch"].forEach(k => P[k] && sec.push(P[k]));
   const body = sec.length ? sec.join("") : `<p class="none">现在没有要操作的。等推送就行，下一根 4 小时 K 线 ${nextClose4h()}。</p>`;
   return `<section class="todo"><h2 class="th">现在要做的事</h2>${body}
     <p class="why">开了单就点「我开了这笔」，可以顺手填实际成交价和数量。记录存在这台设备上，换设备用「设置 → 同步记录」。</p></section>`;
@@ -976,13 +1130,107 @@ function watchSection() {
   return `<h2>自选观察</h2>${cards}<div class="panel"><div class="field"><input type="text" data-watch-in placeholder="输入币名，如 PEPE" autocapitalize="characters" style="width:150px;text-align:left"><button class="link" data-watch-add="1">添加</button></div>
     ${S.watchMsg ? `<p class="why">${esc(S.watchMsg)}</p>` : ""}<p class="why">自选的币只看走势图和关键价位，不发交易信号：它们没经过回测筛选。</p></div>`;
 }
-function overviewPage() {
-  const counts = {};
-  SYMBOLS.forEach(b => { const v = swingFor(b); if (v) counts[v.action] = (counts[v.action] || 0) + 1; });
-  return `${headerHTML("数字货币决策台")}${banners()}${S.syncMsg ? `<div class="banner">${esc(S.syncMsg)}</div>` : ""}${todoBox()}${statusPanel()}
-    ${coinCards()}${watchSection()}
-    <p class="foot">两套系统：4 小时做空（13 个主流币，日线向下时等 4 小时反弹过热再回落开空）和日线趋势做多（38 个币，突破 20 日新高开多）。历史数字已扣手续费、滑点和资金费，不代表以后一定赚。合约有杠杆，务必设止损、小仓位。</p>`;
+function adFmt(v,dec=1) { return v == null || !isFinite(v) ? '—' : (v>=0?'+':'')+(v*100).toFixed(dec)+'%'; }
+function adNum(v) {return (v==null || !isFinite(v))?'—':px(v);}
+function adSection(title,sub=''){return `<div class="ad-section-head"><h2>${title}</h2><p>${sub}</p></div>`;}
+function adPipelineStatus(){
+  const sh=health('short').h,tr=health('trend').h;
+  const row=(nm,h,num)=>`<tr><td><b>${nm}</b><br><span class="ad-small">${num}</span></td><td><span class="ad-pill ${h.level==='green'?'':'dim'}">${esc(h.word)}</span></td><td class="num">${h.n>=15?adFmt(h.avg):'样本不足'}</td><td class="num">${h.pf!=null?h.pf.toFixed(2):'—'}</td><td><button data-tab="journal">复盘验证</button></td></tr>`;
+  return `<div class="ad-table-scroll"><table class="ad-table"><thead><tr><th>已启用策略</th><th>最近表现</th><th>近30笔平均收益*</th><th>近期盈亏比*</th><th>验证</th></tr></thead><tbody>${row('4小时反弹做空',sh,'13个主流币')}${row('日线突破做多',tr,'38个币')}</tbody></table></div><div class="ad-note">* 此处使用现有策略引擎计算的历史模拟样本，不是账户实际收益。状态灯只反映近期回测表现，存在样本偏差，不能直接当成前瞻盈利概率。</div>`;
 }
+// 市场状态（2026-11-06）：不预测涨跌，只把「现在是什么市况、两套系统该怎么做」合成一句话
+function marketState() {
+  const v0 = swingFor("BTC"), btc = v0 ? v0.dir : 0;
+  const sw = SHORT_SET.map(b => swingFor(b)).filter(Boolean);
+  const down = sw.filter(v => v.dir < 0).length, up = sw.filter(v => v.dir > 0).length, n = sw.length;
+  const ch = SHORT_SET.map(b => S.coins[b]?.change).filter(x => x != null && isFinite(x));
+  const falling = ch.filter(x => x < 0).length, avg = ch.length ? ch.reduce((a, x) => a + x, 0) / ch.length : null;
+  const shortsNow = sw.filter(v => v.side < 0 && (v.action === "开空" || v.sinceBars < 12) && gradeOf(v).key !== "C").length;
+  const hot = sw.filter(v => v.dir < 0 && v.phase === "hot").length;
+  const trendOpen = SYMBOLS.filter(b => { const t = trendFor(b); return t && t.open; }).length;
+  const trendNew = SYMBOLS.filter(b => { const t = trendFor(b); return t && t.open && t.open.days <= 2; }).length;
+  const btcW = btc < 0 ? "BTC 日线向下" : btc > 0 ? "BTC 日线向上" : "BTC 日线方向不明";
+  let kind, head, todo;
+  if (btc < 0 || down >= Math.ceil(n * 0.6)) {
+    kind = "bear"; head = `下跌市：${btcW}，13 个主流币里 ${down} 个日线向下`;
+    todo = [`只找做空机会，别抄底。${shortsNow ? `现在有 <b>${shortsNow} 个</b>做空信号可以开，最多同时 ${S.prefs.maxPos} 笔，按下面的顺序先做排前面的。` : `现在没有可开的做空信号，等反弹过热再回落${hot ? `（${hot} 个币快要出信号）` : ""}，不要追着跌势开空。`}`,
+      trendOpen ? `手上的趋势多单（${trendOpen} 个币在持多）按平仓线走，跌破就平，不要扛。` : `趋势做多基本没有信号，正常。`];
+  } else if (btc > 0 && up >= Math.ceil(n * 0.6)) {
+    kind = "bull"; head = `上涨市：${btcW}，13 个主流币里 ${up} 个日线向上`;
+    todo = [`以日线趋势做多为主。${trendNew ? `现在有 <b>${trendNew} 个</b>新的做多信号。` : "等收盘突破 20 日新高再买，别追盘中。"}`,
+      `做空系统只在日线向下的币上做，现在机会少是正常的。`];
+  } else {
+    kind = "mixed"; head = `方向不明：${btcW}，${down} 个向下、${up} 个向上`;
+    todo = [`信号会比较少，没有信号就等，不要为了交易而交易。`,
+      shortsNow || trendNew ? `现在有 ${shortsNow} 个做空、${trendNew} 个做多信号可以看。` : `现在没有可开的信号。`];
+  }
+  const today = avg == null ? "" : `今天 ${ch.length} 个主流币里 ${falling} 个在跌，平均 ${pct(avg, 1)}。`;
+  return { kind, head, todo, today, facts: [["BTC 日线", btc < 0 ? "向下" : btc > 0 ? "向上" : "不明"], ["日线向下", `${down} / ${n}`], ["今天在跌", ch.length ? `${falling} / ${ch.length}` : "—"], ["可开做空", `${shortsNow}`], ["新做多信号", `${trendNew}`]] };
+}
+function overviewPage() {
+  const done=S.progress.done>=S.progress.total, errs=Object.keys(S.coins).filter(b=>SYMBOLS.includes(b)&&!S.coins[b].tf['1d']?.res).length;
+  const open=Object.entries(S.fills).filter(([k,f])=>!f.exitT&&S.follow[k]===1).length;
+  const sh=done?health('short').h:null,tr=done?health('trend').h:null;
+  const scan=done?SYMBOLS.filter(b=>!!trendFor(b)).length:0, T=done?(todoBox(true)||{}):{};
+  const M=done?marketState():null, date=new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+  const hero=!M?`<div class="ad-hero"><div class="ad-hero-head"><span class="ad-pill neutral">市场状态 · ${date}</span></div><h2>正在加载行情和已收盘 K 线（${S.progress.done}/${S.progress.total}），请勿依据未完成的信号下单</h2></div>`
+    :`<div class="ad-hero mk-${M.kind}"><div class="ad-hero-head"><span class="ad-pill neutral">市场状态 · ${date}</span><span class="ad-small">不预测涨跌，只告诉你该怎么做 · 只用已收盘 K 线</span></div>
+      <h2>${M.head}</h2>${M.todo.map(x=>`<p class="mk-do">→ ${x}</p>`).join('')}${M.today?`<p class="ad-small">${M.today}下一根 4 小时 K 线 ${nextClose4h()}。</p>`:''}
+      <div class="mk-facts">${M.facts.map(([k,v])=>`<div><label>${k}</label><b>${v}</b></div>`).join('')}</div></div>`;
+  const act=(T.exit||'')+(T.go||'')+(T.hold||'');
+  return `${headerHTML('个人量化决策工作台')}${banners()}${S.syncMsg?`<div class="banner">${esc(S.syncMsg)}</div>`:''}${hero}
+    ${adSection('01 · 现在要做的事','该平仓 → 可以开仓 → 你的持仓；按等级排序，不是盈利承诺')}<section class="ad-panel todo">${!done?`<div class="ad-placeholder">加载完成后显示</div>`:(act||`<div class="ad-placeholder">现在没有要操作的。没有信号也是有效决策，等推送就行。</div>`)+(T.watch||'')+(T.twatch||'')}<p class="why">开了单就点「我开了这笔」，「你的持仓」里会显示止损线、止盈和平仓提醒。本系统没有接入交易所账户，记录存在这台设备上，换设备用「系统设置 → 同步记录」。</p></section>
+    <details class="ad-fold"${load('foldOpen',0)?' open':''}><summary>账户与系统概况 · 执行纪律<span class="ad-small">${open} / ${S.prefs.maxPos} 笔持仓 · 做空${sh?esc(sh.word):'…'} · 做多${tr?esc(tr.word):'…'}${done&&errs?` · ${errs} 个币数据不全`:''}</span></summary>
+      <div class="ad-hero-foot" style="margin:14px 0"><div class="ad-mini"><label>仓位资金设置</label><b>${S.prefs.capital.toLocaleString('en-US')} USDT</b><small>非交易所真实余额</small></div><div class="ad-mini"><label>单笔风险预算</label><b>${S.prefs.risk}%</b><small>实际可能超损（跳空 / 滑点）</small></div><div class="ad-mini"><label>已记录持仓</label><b>${open} / ${S.prefs.maxPos}</b><small>手动记录，非账户同步</small></div><div class="ad-mini"><label>已扫描币种</label><b>${done?scan+' / '+SYMBOLS.length:'—'}</b><small>${done&&errs?errs+' 个币数据不全，不当作确认':'数据齐全'}</small></div></div>
+      <div class="ad-framework"><div><b>① 只看收盘信号</b><p>4 小时信号在 0、4、8、12、16、20 点收盘后才算，日线在早上 8 点。盘中跌多少都不算，推送可能晚 1～2 小时，以本页为准。</p></div><div><b>② 风险预算</b><p>每笔最多亏本金 ${S.prefs.risk}%，最多同时 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，不要当成互不相关的机会。</p></div><div><b>③ 按等级取舍</b><p>做空先做 A 级；资金费率为负时 A 级已自动降为 B 级；C 级（止损不到 2%）跳过。别提前进，信号出来 2 天内都还能跟进。</p></div></div>
+      <div class="ad-buttons" style="margin-top:12px"><button data-tab="settings">调整本金和风险限制</button></div></details>
+    ${adSection('02 · 策略健康监控','基于现有引擎的历史样本，不是实盘成绩')}<section class="ad-panel">${done?adPipelineStatus():`<div class="ad-placeholder">加载历史数据后展示</div>`}</section>
+    ${adSection('03 · 资金费率套利','买现货 + 等量空单，只收资金费；年化 10% 以上才值得做')}<section class="ad-panel">${carryPanel()||`<div class="ad-placeholder">正在获取资金费率（依次试币安合约、Gate、OKX）</div>`}</section>
+    ${adSection('04 · 全部币种','点开看走势图、关键价位和每个币的历史表现')}<div class="ad-coins">${done?coinCards():''}</div>${watchSection()}
+    ${adSection('05 · 已验证的结论','规则都是跑之前定好的；详情在「策略研究」')}<div class="ad-framework"><div><b>已上线</b><p>做空信号等级 A/B/C；资金费率为负时 A 级降为 B 级；资金费率套利提醒（BTC、ETH 年化 ≥10%）。</p></div><div><b>测过、不采用</b><p>1 小时做空、提前进场 / 提前买、币圈动量轮动、持仓量与多空比、恐惧与贪婪指数、Supertrend、MVRV 过滤。</p></div><div><b>等你决定</b><p>策略状态灯对下一笔没有预测力，按灯减半 / 暂停反而少赚。建议灯只作提示，不再影响建议仓位。</p></div></div>
+    <div class="ad-buttons"><button class="primary" data-tab="research">打开策略研究 →</button></div>
+    <p class="ad-footer">说明：两套系统——4 小时做空（13 个主流币，日线向下时等 4 小时反弹过热再回落开空）和日线趋势做多（38 个币，突破 20 日新高开多）。历史数字已扣手续费、滑点和资金费，本页面不接收真实账户委托。回测指标和历史评分并不能证明未来盈利。做空研究用的是现货 K 线近似合约。</p>`;
+}
+function researchPage(){
+  const cards=[
+    ['01','趋势突破组合','Donchian 20/10 + EMA200 + ADX','适合有持续趋势的市场；可尝试以 ADX/波动过滤低效突破。','候选·待验证','trend'],
+    ['02','多周期回调','日线/4小时 EMA200 + RSI + ATR','延续现有4小时反弹策略。已测 1 小时版（2026-11-03）：两段数据都亏，周期越短越差；30 分钟确认未测，预期不乐观。','部分已测·不采用','pullback'],
+    ['03','波动挤压突破','Bollinger Bandwidth + Keltner + 成交量','研究低波动后的扩张行情，重点验证假突破损耗。','候选·待验证','squeeze'],
+    ['04','趋势跟踪保护','Supertrend + Chandelier Exit + ATR','Supertrend 当做空过滤已测（2026-11-06）：4 小时版只剩 5% 交易，日线版和现有日线方向重复，不合格。Chandelier 离场未测。','部分已测·不采用','exit'],
+    ['05','区间均值回归','VWAP / Z-score + ADX低趋势过滤','优先测试低趋势、成交深度高的市场；与趋势策略分状态使用。','候选·待验证','mean'],
+    ['06','资金费率与拥挤度','Funding + OI变化 + 价格动量','已测（2026-11-06）：资金费率为负时 A 级降为 B 级，已上线；持仓量、多空比两段数据结论相反，不采用。','部分已上线','funding']
+  ];
+  const sources=[
+    ['TradingView','策略图表、回测报告、可视化验证','https://www.tradingview.com/support/solutions/43000666265-how-deep-backtesting-works/'],
+    ['TrendSpider','无代码策略实验、结果解释','https://help.trendspider.com/articles/what-is-the-strategy-tester'],
+    ['QuantConnect LEAN','研究→回测→样本外→模拟/实盘流程','https://www.quantconnect.com/'],
+    ['Freqtrade / FreqAI','策略开源代码、前视偏差检查','https://www.freqtrade.io/en/stable/lookahead-analysis/'],
+    ['Portfolio123','筛选→排序→组合管理的方法','https://portfolio123.customerly.help/en/articles/13609-introduction']
+  ];
+  const saved=load('labNotes',[]);
+  return `${headerHTML('策略研究与实验中心')}<div class="ad-eyebrow">RESEARCH / STRATEGY DISCOVERY</div><div class="ad-sub">研究更多机会，但所有候选均为“待验证”，不能直接变成买卖信号。</div>
+    <div class="ad-hero" style="margin-top:17px"><div class="ad-hero-head"><span class="ad-pill neutral">策略实验室</span><span class="ad-small">从想法到上线，必须有证据</span></div><h2>不断发现策略，不断验证；不是不断叠加指标</h2><p>优秀策略的关键不是指标数量，而是：明确市场假设、稳定的净期望、合理回撤、跨时期表现、真实可执行性。现阶段你已有两套策略；想测新的想法，直接跟 Claude 说，规则先定好再跑老数据和近 1000 天两段。</p><div class="ad-hero-foot"><div class="ad-mini"><label>现有执行策略</label><b>2 套</b><small>保留原始引擎</small></div><div class="ad-mini"><label>待验证研究方向</label><b>${cards.length} 套</b><small>非已证实盈利模型</small></div><div class="ad-mini"><label>已验证</label><b>12 项</b><small>见下方结论表</small></div><div class="ad-mini"><label>自动搜集能力</label><b>待接入服务端</b><small>HTML 本身无后台爬取</small></div></div></div>
+    ${adSection('00 · 已验证结论','每项都是规则先定好、再跑老数据（2018–2024）和近 1000 天两段')}<div class="ad-panel"><div class="ad-table-scroll"><table class="ad-table"><thead><tr><th>日期</th><th>测了什么</th><th>结果</th><th>处理</th></tr></thead><tbody>${[
+      ['11-03','1 小时做空 vs 4 小时做空','1 小时两段都亏','不上线'],
+      ['11-05','做空信号等级 A/B/C','A 级两段都最好，9 年里 8 年 A 好于 B','已上线'],
+      ['11-05','「快要开空」提前进','和等确认赚得差不多，但 24% 信号作废、平均亏 3.8%','不建议提前进'],
+      ['11-05','「快要突破」提前买','总收益只多一点，多出 3 成平均亏 13%～15% 的单','不建议提前买'],
+      ['11-05','策略状态灯调仓','灯对下一笔没有预测力，减半 / 暂停反而少赚','等你决定'],
+      ['11-05','币圈动量轮动','近 1000 天 24 个参数全部亏钱','不上线'],
+      ['11-06','资金费率过滤','费率为负时 A 级只有 B 级水平（胜率 50% / 44%）','已上线：A 降 B'],
+      ['11-06','资金费率套利','2021 年 BTC 约 15%，2023 年后 1%～6%','已上线：≥10% 提醒'],
+      ['11-06','持仓量 + 多空比','老数据有用，近 1000 天正好相反','不采用'],
+      ['11-06','恐惧与贪婪指数','两段结论相反','不采用'],
+      ['11-06','Supertrend','和现有日线方向重复','不采用'],
+      ['11-06','MVRV','MVRV<1 时做空老数据亏，近 1000 天没出现过','只作参考'],
+    ].map(r=>`<tr><td class="num">${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td><span class="ad-pill ${r[3].startsWith('已上线')?'':'dim'}">${r[3]}</span></td></tr>`).join('')}</tbody></table></div><div class="ad-note">完整报告在 claude.ai「量化工具」项目里。历史模拟不代表未来收益；做空研究用的是现货 K 线近似合约。</div></div>
+    ${adSection('01 · 策略候选库','想测哪个，跟 Claude 说一声')}<div class="ad-strats">${cards.map(x=>`<article class="ad-strat"><span class="ad-pill neutral">${x[4]}</span><div class="ad-strat-title">${x[0]} · ${x[1]}</div><div class="ad-small">${x[2]}</div><p>${x[3]}</p></article>`).join('')}</div>
+    ${adSection('02 · 策略验证流水线','只有验证通过才能进入模拟盘或实盘候选')}<div class="ad-panel"><div class="ad-flow"><div><span>01</span><b>假设与数据</b><small>明确原理和交易场景</small></div><div><span>02</span><b>回测防作弊</b><small>排查未来函数 / 生存者偏差</small></div><div><span>03</span><b>样本外/滚动</b><small>多阶段、多币种重测</small></div><div><span>04</span><b>模拟盘观察</b><small>真实延迟、费用和成交</small></div><div><span>05</span><b>人工审批上线</b><small>风险限制 + 退出机制</small></div></div><div class="ad-note">建议默认门槛（研究假设，非统计证明）：样本外扣费净收益为正、盈亏比 &gt; 1.2、分市场阶段不依赖单一极端行情、压力测试仍可接受；样本不足、不同交易所偏差过大、滑点翻倍即失效的策略全部退回。不要用优化集成绩代替样本外结果。</div></div>
+    ${adSection('03 · 行业竞品参考','优先官方文档，不以网络胜率宣传为依据')}<div class="ad-research-grid">${sources.map(x=>`<article class="ad-research-card"><div class="tagline">OFFICIAL REFERENCE</div><h3>${x[0]}</h3><p>${x[1]}</p><a href="${x[2]}" target="_blank" rel="noopener noreferrer">打开官方资料 ↗</a></article>`).join('')}</div>
+    ${adSection('04 · 自动研究雷达：下一阶段落地架构','不是当前 HTML 已实现的定时抓取')}<div class="ad-framework"><div><b>信息搜集服务</b><p>每天从官方文档、GitHub、论文/预印本和公开策略库抓取新版本、规则变化和可审计的代码，并记录来源、时间、许可证。</p></div><div><b>候选策略去重与筛选</b><p>用 AI 提取交易假设、周期、方向、入场/离场和必要数据。去重后生成结构化实验单，不自动覆盖正在运行的策略。</p></div><div><b>后台回测 + 证据报告</b><p>Cloud Code 接入 Freqtrade 或 LEAN，在服务端执行一致的数据、成本、滚动测试和风险监控。只有人工批准才进入模拟盘。</p></div></div>
+    <p class="ad-footer">行业研究来源：TradingView、TrendSpider、QuantConnect、Freqtrade、Portfolio123 官方资料。外部观点仅构成研究方向。市场价格预测应以概率范围与历史校准呈现，而非保证下一根K线方向。</p>`;
+}
+
 function ruleState(s, tf, b) {
   const price = priceOf(b);
   if (s.action === "buy") return `刚发出<b class="up">买入</b>信号`;
@@ -1139,6 +1387,9 @@ function settingsPage() {
       <p><b>策略状态灯是什么？</b>看每套系统最近 30 笔模拟交易：赚的钱是亏的钱 1.1 倍以上为绿灯，正常开仓；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓，只看不做，已有的单照常按规则离场。系统会继续模拟，表现恢复后自动转回绿灯。灯的变化会推送。</p>
       <p><b>为什么止损离得太近时提示跳过？</b>4 小时做空的止损在 200 均线，有时离进场价不到 2%。回测里这种单胜率只有 18%，而按「每次最多亏 1%」算出来的仓位反而最大，是亏钱的主要来源。</p>
       <p><b>信号等级 A / B / C 是什么？</b>A 最好，B 一般，C 最差。每个做空信号按两件事分档：止损距离（离 200 均线有没有 2%）和日线转空了多少天。A 级：止损 2% 以上、日线转空 30 天内，近 1000 天胜率 61%、平均每次 +2.7%，2018–2024 年胜率 54%、平均 +0.4%。B 级：止损 2% 以上、日线转空超过 30 天，近 1000 天胜率 46%、平均 +1.1%，2018–2024 年胜率 38%、平均 −1.8%。C 级：止损不到 2%，胜率不到 2 成，建议跳过。日线刚转空时，反弹之后继续下跌的概率更高；下跌拖得越久，越容易反弹失败。9 年里有 8 年 A 级好于 B 级。等级只是提示，开空、平空的规则没有变。</p>
+      <p><b>资金费率为什么会让 A 级降为 B 级？</b>2026 年 11 月回测（13 个币、2019 年 9 月起，有资金费率数据的交易）：开空时资金费率为负（空头在付钱给多头，说明做空的人已经很多），A 级单的表现只有 B 级水平——近 1000 天胜率 50%（资金费率为正时 62%），2018–2024 年胜率 44%（为正时 55%）。B 级单不受影响，所以只把 A 级降一级。资金费率取最近 3 次结算的平均，依次从币安合约、Gate、OKX 取，取不到就按原来的等级。</p>
+      <p><b>资金费率套利是什么？</b>一半本金买现货，另一半做保证金开同样数量的空单（1 倍），涨跌互相抵消，只赚空单收到的资金费。牛市过热时资金费率高，2021 年 BTC 全年折算约 15%；2023 年以后只有 2%～6%，今年 1%～2%，扣掉手续费不划算，小币还经常是负的（倒贴钱）。所以只在 BTC 或 ETH 过去 7 天折算年化到 10% 以上时推送提醒，跌回 5% 以下提醒结束。风险：两边价格偶尔会短暂偏离，极端行情时合约保证金要留够，交易所本身也有风险。</p>
+      <p><b>为什么价格已经大跌了，4 小时信号还没变？</b>4 小时做空只在 4 小时 K 线收盘后才判断（马尼拉 / 北京时间 0、4、8、12、16、20 点），盘中跌多少都不算，这样和回测完全一致、信号不会出了又消失。日线方向更慢，要等每天早上 8 点日线收盘。网页开着的话，收盘后大约 1 分钟就会更新；推送要等 GitHub 的定时任务，它经常晚 1～2 小时，偶尔更久。</p>
       <p><b>看到「快要开空」能不能提前进？</b>回测了 545 次「快要开空」：约 76% 之后真的发出开空信号，一般再等 6～8 小时；约 24% 价格直接站回 200 均线、信号作废，提前进的这部分平均亏 3.8%。整体算下来提前进和等确认差不多，风险更大，所以等 4 小时收盘确认再进。</p>
       <p><b>开空信号出来后，多久还能跟进？</b>2 天内都可以。历史上开空后 1～2 天才跟进，胜率 56%，平均每次 +1.1%，和准时进场差不多；超过 2 天平均只剩 +0.4%，就不建议追了。满 1 天时会推送“跟进提示”。</p>
       <p><b>胜率不到一半，为什么还能赚？</b>这种做法赚的时候平均比亏的时候多，所以胜率 40% 左右也能赚钱。胜率又高又稳定赚钱的短线方法基本不存在；真正要做的是只做顺大势的一边、每次都止损、亏得少，让赚的那几次把钱赚回来。</p>
@@ -1360,9 +1611,9 @@ function unseen() { return (S.alerts || []).filter(a => a.t > S.seenAt).length; 
 function updateBadge() {
   const btn = document.querySelector('nav button[data-tab="msgs"]'); if (!btn) return;
   const n = S.tab === "msgs" ? 0 : unseen();
-  btn.innerHTML = `消息${n ? `<span class="badge">${n > 99 ? "99+" : n}</span>` : ""}`;
+  btn.innerHTML = `◉ <span>消息中心</span>${n ? `<span class="badge">${n > 99 ? "99+" : n}</span>` : ""}`;
 }
-const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"] };
+const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"], carry: ["套利", "dnone"] };
 function msgsPage() {
   const list = (S.alerts || []).slice().sort((x, y) => y.t - x.t), seen = S.seenPrev ?? S.seenAt;
   let day = "", html = "";
@@ -1435,7 +1686,7 @@ function render() {
   const app = document.getElementById("app");
   const ae = document.activeElement;
   if (app.contains(ae) && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
-  app.innerHTML = S.tab === "journal" ? journalPage() : S.tab === "settings" ? settingsPage() : S.tab === "msgs" ? msgsPage() : S.view ? detailPage(S.view) : overviewPage();
+  app.innerHTML = S.tab === "research" ? researchPage() : S.tab === "journal" ? journalPage() : S.tab === "settings" ? settingsPage() : S.tab === "msgs" ? msgsPage() : S.view ? detailPage(S.view) : overviewPage();
   if (S.tab === "signals" && S.view) { ensureData(S.view); mountChart(S.view); }
   updateBadge();
 }
@@ -1513,6 +1764,7 @@ document.addEventListener("click", e => {
   else if (d.old) { S.oldOpen = !S.oldOpen; render(); }
   else if (d.diag) diagnose();
 });
+document.addEventListener("toggle", e => { if (e.target.classList && e.target.classList.contains("ad-fold")) save("foldOpen", e.target.open ? 1 : 0); }, true);
 document.addEventListener("change", e => {
   const k = e.target.dataset.pref; if (!k) return;
   const v = parseFloat(e.target.value);
@@ -1532,6 +1784,7 @@ async function boot() {
     await new Promise(r => setTimeout(r, 30000));
   }
   loadAlerts(); setInterval(loadAlerts, 120000);
+  loadFunding(); setInterval(loadFunding, 30 * 60000);
   await loadAllHistory();
   lastCandles = Date.now();
   render();
