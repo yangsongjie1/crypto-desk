@@ -25,7 +25,7 @@
    "action": "观望"
   },
   "ETH": {
-   "dir": -1,
+   "dir": 0,
    "action": "观望"
   },
   "SOL": {
@@ -38,7 +38,7 @@
   },
   "XRP": {
    "dir": -1,
-   "action": "开空"
+   "action": "持空中"
   },
   "DOGE": {
    "dir": -1,
