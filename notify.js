@@ -231,6 +231,24 @@ async function klines(b, tf, total = HISTORY[tf]) {
   }
   throw new Error(errs.join("; "));
 }
+// 资金费率（2026-11-06 回测）：取过去 7 天的结算记录，依次试 Binance 合约、Gate、OKX
+async function funding(b) {
+  const since = Date.now() - 7 * 86400000, tries = [
+    async () => (await getJSON(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${b}${QUOTE}&startTime=${since}&limit=100`)).map(x => [+x.fundingTime, +x.fundingRate]),
+    async () => (await getJSON(`https://api.gateio.ws/api/v4/futures/usdt/funding_rate?contract=${b}_${QUOTE}&limit=60`)).map(x => [+x.t * 1000, +x.r]),
+    async () => (await getJSON(`https://www.okx.com/api/v5/public/funding-rate-history?instId=${b}-${QUOTE}-SWAP&limit=60`)).data.map(x => [+x.fundingTime, +(x.realizedRate || x.fundingRate)]),
+  ];
+  for (const f of tries) {
+    try {
+      const r = (await f()).filter(x => x[0] >= since && isFinite(x[1])).sort((a, c) => a[0] - c[0]);
+      if (r.length < 3) continue;
+      const last3 = r.slice(-3), days = Math.max((Date.now() - r[0][0]) / 86400000, 1);
+      // now：最近 3 次结算的平均（回测口径）；carry：买现货+等量空单的本金年化（一半现货一半保证金）
+      return { now: last3.reduce((s, x) => s + x[1], 0) / 3, carry: r.reduce((s, x) => s + x[1], 0) / days * 365 * 0.5 };
+    } catch (e) {}
+  }
+  return null;
+}
 function toK(arr, tf) {
   const now = Date.now(), r = arr.filter(x => x[0] + STEP[tf] <= now), k = { ts: r.map(x => x[0]) };
   ["o", "h", "l", "c"].forEach((f, i) => { k[f] = Float64Array.from(r, x => x[i + 1]); });
@@ -377,7 +395,7 @@ async function push(title, body, important) {
         if (v.dir > 0) Object.assign(v, { action: "观望", side: 0 });
         v.tp = rsiTarget(k4.c, 35);
       }
-      R[b] = { v, t: trendCalc(k1, true), price: v ? v.price : price };
+      R[b] = { v, t: trendCalc(k1, true), price: v ? v.price : price, f: short ? await funding(b) : null };
     } catch (e) { console.log(b, "拉取失败：", e.message); }
   }
   // 2) 策略状态灯（最近 30 笔）
@@ -402,11 +420,15 @@ async function push(title, body, important) {
       (sys === "short" && z.tight ? `\n⚠ 止损只离 ${(z.dist * 100).toFixed(1)}%，历史上这类单胜率仅 18%，建议跳过或减半` : "");
   };
   // 信号等级（2026-11-05 回测，和网页同一套）：止损距离 ≥2% + 日线转空 ≤30 天
-  const gradeLine = (dist, age) => {
+  // 2026-11-06 加：资金费率 ≤0（空头在付钱）时 A 级降为 B 级。回测里这种 A 级只有 B 级的水平
+  const gradeLine = (dist, age, f) => {
+    const down = dist >= 0.02 && age <= 30 && f && f.now <= 0;
     const g = dist < 0.02 ? ["C 级（差）", "止损不到 2%，历史胜率约 2 成，建议跳过"]
+      : down ? ["B 级（一般）", "本来是 A 级，但资金费率为负，历史上这种单胜率：近 1000 天 50%，2018–2024 年 44%，只有 B 级水平"]
       : age <= 30 ? ["A 级（好）", "历史胜率：近 1000 天 61%，2018–2024 年 54%"]
       : ["B 级（一般）", "历史胜率：近 1000 天 46%，2018–2024 年 38%（老数据整体亏）"];
-    return `等级：${g[0]}（日线转空 ${age < 1 ? "不到 1" : Math.round(age)} 天）· ${g[1]}`;
+    const fl = f ? `\n资金费率：${(f.now * 100).toFixed(4)}%（最近 3 次平均，${f.now > 0 ? "多头在付钱" : "空头在付钱"}）` : "";
+    return `等级：${g[0]}（日线转空 ${age < 1 ? "不到 1" : Math.round(age)} 天）· ${g[1]}${fl}`;
   };
   const shortPlan = (v, p) => [
     `止损：${fmt(v.stop)}（${pctS(v.stop / p - 1)}），4小时收盘站上就平`,
@@ -418,7 +440,7 @@ async function push(title, body, important) {
   const trendKnown = new Set(state.trendCoins || (state.trendInit ? SHORT_SET : []));
   for (const b of SYMBOLS) {
     if (!R[b]) continue;
-    const { v, t, price: px } = R[b], quietTrend = trendInit || !trendKnown.has(b);
+    const { v, t, price: px, f } = R[b], quietTrend = trendInit || !trendKnown.has(b);
     const sentBefore = new Set(sent);
     if (!v) summary.push(`${b} ${fmt(px)}：日线趋势${t ? t.action : "—"}`);
     if (v) {
@@ -437,7 +459,7 @@ async function push(title, body, important) {
         if (e.act === "开空") {
           if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
           const move = 1 - v.price / e.price;
-          const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}\n${gradeLine(e.dist, e.age)}`;
+          const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}\n${gradeLine(e.dist, e.age, f)}`;
           events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}`, body });
           v.justOpened = true;
         } else {
@@ -453,7 +475,7 @@ async function push(title, body, important) {
         if (!sent.has(key)) { sent.add(key);
           if (!first) { const fell = 1 - v.price / v.entry;
             events.push({ coin: b, kind: "follow", price: v.price, stop: v.stop, tp: v.tp, important: true, title: `${b} 跟进提示：开空已满 1 天`,
-              body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n${gradeLine(v.sigDist, v.age)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
+              body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n${gradeLine(v.sigDist, v.age, f)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
       }
     }
     // 日线趋势做多：查最近 2 天的信号
@@ -477,6 +499,18 @@ async function push(title, body, important) {
       }
     });
     if (v) state.swing[b] = { dir: v.dir, action: v.action };
+  }
+  // 资金费率套利（2026-11-06 回测）：BTC、ETH 过去 7 天的本金年化 ≥10% 提醒可以考虑，跌回 5% 以下提醒结束
+  state.carry = state.carry || {};
+  for (const b of ["BTC", "ETH"]) {
+    const f = R[b] && R[b].f; if (!f) continue;
+    const was = state.carry[b], on = was ? f.carry >= 0.05 : f.carry >= 0.10, yr = (f.carry * 100).toFixed(1) + "%";
+    console.log(`${b} 资金费率 ${(f.now * 100).toFixed(4)}%，套利年化 ${yr}`);
+    if (was !== undefined && on !== was && !first)
+      events.push({ coin: b, kind: "carry", important: false, title: on ? `${b} 资金费率套利值得考虑` : `${b} 资金费率套利可以结束`,
+        body: on ? `过去 7 天资金费率折算本金年化约 ${yr}（一半本金买现货、一半做保证金开等量空单，不管涨跌只收资金费）。历史上只有牛市过热时才这么高（2021 年全年平均 BTC 约 15%），通常维持不了太久。\n开仓：现货买入和合约开空同时下、数量一样，合约 1 倍。年化跌回 5% 以下会再提醒你结束。`
+          : `过去 7 天资金费率折算本金年化只剩约 ${yr}，扣掉手续费已经不划算。现货卖出、合约空单平掉，两边同时操作。` });
+    state.carry[b] = on;
   }
   console.log("数据源：", [...used].join("、") || "全部失败");
   console.log(summary.join("\n"));
