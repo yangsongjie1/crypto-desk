@@ -26,11 +26,11 @@
  "swing": {
   "BTC": {
    "dir": -1,
-   "action": "开空"
+   "action": "持空中"
   },
   "ETH": {
    "dir": -1,
-   "action": "开空"
+   "action": "持空中"
   },
   "SOL": {
    "dir": -1,
@@ -42,7 +42,7 @@
   },
   "XRP": {
    "dir": -1,
-   "action": "平空"
+   "action": "观望"
   },
   "DOGE": {
    "dir": -1,
