@@ -18,28 +18,31 @@
   "TIA|trend|1793318400000|平多",
   "LTC|swing|1793649600000|平空",
   "XRP|swing|1793808000000|开空",
-  "XRP|follow|1793808000000"
+  "XRP|follow|1793808000000",
+  "BTC|swing|1793908800000|开空",
+  "ETH|swing|1793908800000|开空",
+  "XRP|swing|1793908800000|平空"
  ],
  "swing": {
   "BTC": {
-   "dir": 0,
-   "action": "观望"
+   "dir": -1,
+   "action": "开空"
   },
   "ETH": {
-   "dir": 0,
-   "action": "观望"
+   "dir": -1,
+   "action": "开空"
   },
   "SOL": {
    "dir": -1,
    "action": "观望"
   },
   "BNB": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "XRP": {
    "dir": -1,
-   "action": "持空中"
+   "action": "平空"
   },
   "DOGE": {
    "dir": -1,
@@ -54,7 +57,7 @@
    "action": "观望"
   },
   "LINK": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "LTC": {
@@ -121,5 +124,9 @@
   "DASH",
   "OGN",
   "SEI"
- ]
+ ],
+ "carry": {
+  "BTC": false,
+  "ETH": false
+ }
 }
