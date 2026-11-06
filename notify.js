@@ -282,7 +282,7 @@ function swingCalc(k4, k1) {
   for (let i = W + 1; i < n; i++) {
     if (want[i] === want[i - 1]) continue;
     if (want[i - 1] === -1) ev.push({ t: k4.ts[i], act: "平空", price: c[i], why: r[i] < 35 ? "止盈（RSI 跌到 35 以下）" : c[i] > e200[i] ? "止损（4小时收盘站上 200 均线）" : "日线不再向下" });
-    if (want[i] === -1) ev.push({ t: k4.ts[i], act: "开空", price: c[i], age: dage[i] / 6, dist: e200[i] / c[i] - 1 });
+    if (want[i] === -1) ev.push({ t: k4.ts[i], act: "开空", price: c[i], age: dage[i] / 6, dist: e200[i] / c[i] - 1, rsi: r[i] });
   }
   const L = n - 1, now = want[L], prev = want[L - 1];
   let action = "观望", entry = null, sinceBars = null, phase = null, sigI = L;
@@ -291,7 +291,7 @@ function swingCalc(k4, k1) {
   else if (prev) action = prev > 0 ? "平多" : "平空";
   else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
   return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, ev, stats: { L: st(1), S: st(-1) },
-    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1 };
+    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI] };
 }
 // ===== 共用计算：趋势跟踪 / 策略状态 / 止盈估算 / 仓位（网页和推送用同一份）=====
 function trendCalc(k, longOnly = true) {
@@ -421,14 +421,16 @@ async function push(title, body, important) {
   };
   // 信号等级（2026-11-05 回测，和网页同一套）：止损距离 ≥2% + 日线转空 ≤30 天
   // 2026-11-06 加：资金费率 ≤0（空头在付钱）时 A 级降为 B 级。回测里这种 A 级只有 B 级的水平
-  const gradeLine = (dist, age, f) => {
+  // 2026-11-06 加：开空时 4 小时 RSI <50 = 追跌信号（多是暴跌后日线刚转空触发），历史上不赚钱
+  const gradeLine = (dist, age, f, rsi) => {
     const down = dist >= 0.02 && age <= 30 && f && f.now <= 0;
     const g = dist < 0.02 ? ["C 级（差）", "止损不到 2%，历史胜率约 2 成，建议跳过"]
       : down ? ["B 级（一般）", "本来是 A 级，但资金费率为负，历史上这种单胜率：近 1000 天 50%，2018–2024 年 44%，只有 B 级水平"]
       : age <= 30 ? ["A 级（好）", "历史胜率：近 1000 天 61%，2018–2024 年 54%"]
       : ["B 级（一般）", "历史胜率：近 1000 天 46%，2018–2024 年 38%（老数据整体亏）"];
     const fl = f ? `\n资金费率：${(f.now * 100).toFixed(4)}%（最近 3 次平均，${f.now > 0 ? "多头在付钱" : "空头在付钱"}）` : "";
-    return `等级：${g[0]}（日线转空 ${age < 1 ? "不到 1" : Math.round(age)} 天）· ${g[1]}${fl}`;
+    const ch = rsi != null && rsi < 50 ? `\n⚠ 追跌信号：开空时 4小时 RSI 只有 ${rsi.toFixed(0)}，是大跌后日线刚转空才触发的。历史上这类信号近 1000 天 19 笔平均 −0.3%，老数据 13 笔平均 −4.6%（正常信号近 1000 天 +2.2%）。建议不追，等反弹到 RSI 65 附近再回落再空` : "";
+    return `等级：${g[0]}（日线转空 ${age < 1 ? "不到 1" : Math.round(age)} 天）· ${g[1]}${fl}${ch}`;
   };
   const shortPlan = (v, p) => [
     `止损：${fmt(v.stop)}（${pctS(v.stop / p - 1)}），4小时收盘站上就平`,
@@ -459,8 +461,8 @@ async function push(title, body, important) {
         if (e.act === "开空") {
           if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
           const move = 1 - v.price / e.price;
-          const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}\n${gradeLine(e.dist, e.age, f)}`;
-          events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}`, body });
+          const body = `进场：现价 ${fmt(v.price)}（信号价 ${fmt(e.price)}${late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : ""}）\n${shortPlan(v, v.price)}\n${gradeLine(e.dist, e.age, f, e.rsi)}`;
+          events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}${e.rsi != null && e.rsi < 50 ? "（追跌，建议等反弹）" : ""}`, body });
           v.justOpened = true;
         } else {
           const opened = [...v.ev.slice(0, idx)].reverse().find(x => x.act === "开空");
@@ -475,7 +477,7 @@ async function push(title, body, important) {
         if (!sent.has(key)) { sent.add(key);
           if (!first) { const fell = 1 - v.price / v.entry;
             events.push({ coin: b, kind: "follow", price: v.price, stop: v.stop, tp: v.tp, important: true, title: `${b} 跟进提示：开空已满 1 天`,
-              body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n${gradeLine(v.sigDist, v.age, f)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
+              body: `进场：现价 ${fmt(v.price)}（${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%）\n${shortPlan(v, v.price)}\n${gradeLine(v.sigDist, v.age, f, v.sigRsi)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
       }
     }
     // 日线趋势做多：查最近 2 天的信号
