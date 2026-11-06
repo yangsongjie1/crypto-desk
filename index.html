@@ -193,6 +193,7 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .seg button { white-space: nowrap; }
 
 /* AlphaDesk 2.0 — desktop-first responsive trading terminal */
+.grade.chase{border-left:3px solid #e0a43b;padding-left:10px}.guard{margin:10px 0 4px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);font-size:13px;line-height:1.55}.guard i{display:block;color:var(--muted);font-style:normal;font-size:12px;margin-top:4px}.guard.g-ok{background:#12302a55;border-color:#2a6b57}.guard.g-mid{background:#3a2e1355;border-color:#8a6a2a}.guard.g-warn{background:#3a141f66;border-color:#8b2c4a}
 .mk-do{color:#dce8f6 !important;font-size:14.5px !important;margin:0 0 8px !important}.mk-do b{color:#fff}
 .ad-hero.mk-bear{border-color:#7a3446;background:radial-gradient(circle at 80% -30%,#8b2c4a66,transparent 42%),linear-gradient(117deg,#2a1823,#101b2b 78%)}
 .ad-hero.mk-bull{border-color:#2a6b57;background:radial-gradient(circle at 80% -30%,#2c8b6a66,transparent 42%),linear-gradient(117deg,#14302a,#101b2b 78%)}
@@ -833,7 +834,7 @@ function swingCalc(k4, k1) {
   else if (prev) action = prev > 0 ? "平多" : "平空";
   else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
   return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, open, ddir, stats: { L: st(1), S: st(-1) },
-    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1 };
+    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI] };
 }
 const SW = {};
 function swingFor(b) {
@@ -860,6 +861,17 @@ const GRADE = {
 const GRADE_RANK = { A: 0, B: 1, C: 2 };
 // 2026-11-06 加：资金费率 ≤0（空头在付钱）时 A 级降为 B 级。回测里这种 A 级只有 B 级水平（近 1000 天胜率 50%，2018–2024 年 44%）
 const GRADE_DOWN = { k: "B 级（一般）", c: "gb", r: [50, 0.9], o: [44, -1.6], tip: "本来是 A 级，但资金费率为负（空头在付钱），历史上这种单只有 B 级的水平，所以降一级。" };
+// 持仓守护（2026-11-06 回测）：最后赚钱的空单，持仓中最多反向涨多少（近 1000 天 87 笔：中位数 1.7%，1/4 超过 3.1%，1/10 超过 5.0%；平均拿约 3.5 天）
+function guardHTML(b, entry, price) {
+  const v = swingFor(b); if (!v || !(entry > 0) || !(price > 0)) return "";
+  const adv = price / entry - 1, toStop = v.stop / price - 1;
+  const lvl = adv <= 0 ? ["ok", `现在是赚的（${pct(-adv, 1)}），按规则拿着，等 RSI 跌破 35 或出平空信号。`]
+    : adv < 0.017 ? ["ok", `反向涨了 ${pct(adv, 1)}，比一半赚钱的空单经历过的还小，正常波动。`]
+    : adv < 0.031 ? ["ok", `反向涨了 ${pct(adv, 1)}：一半赚钱的空单都经历过这个幅度，还算正常，别慌。`]
+    : adv < 0.05 ? ["mid", `反向涨了 ${pct(adv, 1)}：只有约 1/4 的赚钱空单涨到这么多，开始不太舒服，但还没到止损，按规则拿着。`]
+    : ["warn", `反向涨了 ${pct(adv, 1)}：只有约 1/10 的赚钱空单涨到这么多，留意止损线，4 小时收盘站上就平。`];
+  return `<div class="guard g-${lvl[0]}"><b>持仓守护</b> ${lvl[1]} 离止损还有 <span class="num">${toStop > 0 ? pct(toStop, 1) : "已越过"}</span>（只看 4 小时收盘价，盘中冲上去不算）。<i>历史上最后赚钱的空单：中途最多反向涨的中位数 1.7%，1/4 超过 3.1%，1/10 超过 5%，平均拿约 3.5 天。</i></div>`;
+}
 function gradeOf(v) {
   const dist = v.action === "持空中" ? v.sigDist : v.stop / v.price - 1, f = S.fund[v.b];
   let key = dist < 0.02 ? "C" : v.age <= 30 ? "A" : "B";
@@ -868,9 +880,12 @@ function gradeOf(v) {
 }
 const ageW = a => a < 1 ? "不到 1 天" : `${Math.round(a)} 天`;
 const fundW = f => f ? `资金费率 ${(f.now * 100).toFixed(4)}%（${f.now > 0 ? "多头在付钱" : "空头在付钱"}）` : "资金费率暂时取不到";
+// 2026-11-06 回测：开空时 4 小时 RSI 已低于 50（多是暴跌后日线刚转空才触发），历史表现明显差于正常信号
+const isChase = v => v && v.side < 0 && v.sigRsi != null && v.sigRsi < 50;
+const CHASE_TIP = "历史上这类信号：近 1000 天 19 笔平均每次 −0.3%，2018–2024 年 13 笔平均 −4.6%；正常信号（RSI ≥50）近 1000 天平均 +2.2%。离止盈太近、离止损太远，建议不追，等反弹到 RSI 65 附近再回落时再空。";
 function gradeHTML(v, preview) {
   const g = gradeOf(v), f = ([w, a]) => `胜率 ${w}%，平均每次 ${sgn(a)}`;
-  return `<p class="grade">${preview ? "如果现在发出信号，" : ""}信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}，${fundW(g.f)}。历史上这一档：近 1000 天${f(g.r)}；2018–2024 年${f(g.o)}。${g.tip}</p>`;
+  return `${!preview && isChase(v) ? `<p class="grade chase"><b class="warnc">⚠ 追跌信号</b>：开空时 4 小时 RSI 只有 ${v.sigRsi.toFixed(0)}（低于 50），是大跌之后日线刚转空才触发的。${CHASE_TIP}</p>` : ""}<p class="grade">${preview ? "如果现在发出信号，" : ""}信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}，${fundW(g.f)}。历史上这一档：近 1000 天${f(g.r)}；2018–2024 年${f(g.o)}。${g.tip}</p>`;
 }
 // 「快要开空」每个币旁边的一句话结论
 const WATCH_VERDICT = { A: "出信号可以做", B: "出信号可做，但不如 A 级", C: "出信号也建议跳过" };
@@ -1055,7 +1070,7 @@ function todoBox(asParts) {
   }
   const held = hold.length + exit.filter(x => x.mine && !x.done).length, slots = Math.max(0, S.prefs.maxPos - held);
   const gr = x => x.g ? GRADE_RANK[x.g.key] : 0;
-  go.sort((x, y) => (health(y.sys).h.factor - health(x.sys).h.factor) || (gr(x) - gr(y)) || (y.fresh - x.fresh) || (y.score - x.score));
+  go.sort((x, y) => (isChase(x.v) - isChase(y.v)) || (health(y.sys).h.factor - health(x.sys).h.factor) || (gr(x) - gr(y)) || (y.fresh - x.fresh) || (y.score - x.score));
   const sys = x => `<span class="chip sys">${SYSN[x.sys]}</span>`, sec = [], P = {};
   if (exit.length) (P.exit = `<h3 class="t-exit">该平仓</h3>${exit.map(x => {
     const f = fillOf(x.key), e = f && !f.est ? f.entry : x.p0, r = x.done && !(f && !f.est) ? x.done.r : x.side * (x.price / e - 1) - 2 * FEE;
@@ -1064,7 +1079,7 @@ function todoBox(asParts) {
       ${x.mine ? (S.closeEdit === x.key ? exitForm(x.key, x.price) : `<div class="follow"><button data-close="${x.key}">我已平仓</button></div>`) : ""}</div>`; }).join("")}`);
   if (go.length) (P.go = `<h3 class="t-go">可以开仓</h3>${slots ? "" : `<p class="why">你已标记持有 ${held} 笔，到达上限 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，同时开太多等于把风险叠在一起，先不开新的。</p>`}${go.map((x, i) => {
     const paused = health(x.sys).h.factor === 0, ok = slots && i < slots && !paused;
-    const tag = paused ? `<span class="chip dnone">策略暂停</span>` : !slots ? `<span class="chip dnone">满仓不开</span>` : i < slots ? `<span class="chip ddown">${i === 0 ? "优先" : "可开"}</span>` : `<span class="chip dnone">备选</span>`;
+    const tag = paused ? `<span class="chip dnone">策略暂停</span>` : x.sys === "short" && isChase(x.v) ? `<span class="chip dnone">追跌·建议等</span>` : !slots ? `<span class="chip dnone">满仓不开</span>` : i < slots ? `<span class="chip ddown">${i === 0 ? "优先" : "可开"}</span>` : `<span class="chip dnone">备选</span>`;
     let text, planH;
     if (x.sys === "short") {
       const late = x.fresh ? "刚出开空信号" : `已过 ${followAge(x.v)}${x.v.sinceBars >= 6 ? "，仍可跟进" : ""}`, moved = 1 - x.price / x.v.open.p0;
@@ -1084,7 +1099,7 @@ function todoBox(asParts) {
       : `<div class="lv"><span>平仓线</span><b class="sl">${px(x.t.open.exitLv)}</b><i>日线收盘跌破就平；距现价 ${pctTo(x.t.open.exitLv, x.price)}，这笔约 ${pct(x.t.open.exitLv / e - 1 - 2 * FEE, 1)}</i>
          <span>止盈</span><b class="tp">不固定</b><i>平仓线每天跟着上移，让利润跑</i></div>`;
     return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip open">拿着</span></span></div>
-      <p>开${sideW(x.side)} ${px(e)}${real && f.qty ? ` × ${f.qty} ${x.b}` : ""}${real ? "（你的成交）" : "（信号价）"}，至今 ${pnlText(g)}。继续拿着，出信号会推送。</p>${lv}
+      <p>开${sideW(x.side)} ${px(e)}${real && f.qty ? ` × ${f.qty} ${x.b}` : ""}${real ? "（你的成交）" : "（信号价）"}，至今 ${pnlText(g)}。继续拿着，出信号会推送。</p>${lv}${x.sys === "short" ? guardHTML(x.b, e, x.price) : ""}
       ${S.fillEdit === x.key ? fillForm(x.key, x.b, e, null) : `<div class="srow"><button class="link" data-coin="${x.b}">看走势图 ›</button><button class="link" data-fedit="${x.key}">${real ? "修改成交" : "填写实际成交"}</button></div>`}</div>`; }).join("")}`);
   if (watch.length) (P.watch = `<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。${EARLY_TIP}后面的等级是按现在的价格预估的。</p>
     <div class="wlist">${watch.map(x => { const g = gradeOf(x.v); return `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)} · <b class="${g.c === "gc" ? "warnc" : ""}">${g.k}</b><i class="wv"><b>别提前跟</b>，${WATCH_VERDICT[g.key]}</i></span>`; }).join("")}</div>`);
@@ -1145,7 +1160,7 @@ function marketState() {
   const down = sw.filter(v => v.dir < 0).length, up = sw.filter(v => v.dir > 0).length, n = sw.length;
   const ch = SHORT_SET.map(b => S.coins[b]?.change).filter(x => x != null && isFinite(x));
   const falling = ch.filter(x => x < 0).length, avg = ch.length ? ch.reduce((a, x) => a + x, 0) / ch.length : null;
-  const shortsNow = sw.filter(v => v.side < 0 && (v.action === "开空" || v.sinceBars < 12) && gradeOf(v).key !== "C").length;
+  const shortsAll = sw.filter(v => v.side < 0 && (v.action === "开空" || v.sinceBars < 12) && gradeOf(v).key !== "C"), chase = shortsAll.filter(isChase).length, shortsNow = shortsAll.length - chase;
   const hot = sw.filter(v => v.dir < 0 && v.phase === "hot").length;
   const trendOpen = SYMBOLS.filter(b => { const t = trendFor(b); return t && t.open; }).length;
   const trendNew = SYMBOLS.filter(b => { const t = trendFor(b); return t && t.open && t.open.days <= 2; }).length;
@@ -1153,7 +1168,7 @@ function marketState() {
   let kind, head, todo;
   if (btc < 0 || down >= Math.ceil(n * 0.6)) {
     kind = "bear"; head = `下跌市：${btcW}，13 个主流币里 ${down} 个日线向下`;
-    todo = [`只找做空机会，别抄底。${shortsNow ? `现在有 <b>${shortsNow} 个</b>做空信号可以开，最多同时 ${S.prefs.maxPos} 笔，按下面的顺序先做排前面的。` : `现在没有可开的做空信号，等反弹过热再回落${hot ? `（${hot} 个币快要出信号）` : ""}，不要追着跌势开空。`}`,
+    todo = [`只找做空机会，别抄底。${shortsNow ? `现在有 <b>${shortsNow} 个</b>做空信号可以开，最多同时 ${S.prefs.maxPos} 笔，按下面的顺序先做排前面的。` : `现在没有可开的做空信号，等反弹过热再回落${hot ? `（${hot} 个币快要出信号）` : ""}，不要追着跌势开空。`}${chase ? `另有 ${chase} 个是追跌信号（大跌后日线刚转空、RSI 已经很低），历史上不赚钱，建议等反弹。` : ""}`,
       trendOpen ? `手上的趋势多单（${trendOpen} 个币在持多）按平仓线走，跌破就平，不要扛。` : `趋势做多基本没有信号，正常。`];
   } else if (btc > 0 && up >= Math.ceil(n * 0.6)) {
     kind = "bull"; head = `上涨市：${btcW}，13 个主流币里 ${up} 个日线向上`;
@@ -1165,6 +1180,10 @@ function marketState() {
       shortsNow || trendNew ? `现在有 ${shortsNow} 个做空、${trendNew} 个做多信号可以看。` : `现在没有可开的信号。`];
   }
   const today = avg == null ? "" : `今天 ${ch.length} 个主流币里 ${falling} 个在跌，平均 ${pct(avg, 1)}。`;
+  // 2026-11-06 回测：日线向下 + 24 小时跌 6% 以上之后的走势（13 个币，近 1000 天 565 次 / 老数据 1227 次）
+  const btcCh = S.coins.BTC?.change;
+  if (avg != null && (avg <= -0.05 || (btcCh != null && btcCh <= -0.06)) && down >= Math.ceil(n * 0.5))
+    todo.push(`<b>大跌之后别追</b>：历史上日线向下时 24 小时跌 6% 以上之后，接下来 24 小时继续跌的只有 46%（老数据 38%），反弹反而更常见，24 小时内常见反弹 3%～6%。接下来几小时涨跌基本是一半一半，等反弹过热再空更划算。`);
   return { kind, head, todo, today, facts: [["BTC 日线", btc < 0 ? "向下" : btc > 0 ? "向上" : "不明"], ["日线向下", `${down} / ${n}`], ["今天在跌", ch.length ? `${falling} / ${ch.length}` : "—"], ["可开做空", `${shortsNow}`], ["新做多信号", `${trendNew}`]] };
 }
 function overviewPage() {
