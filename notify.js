@@ -341,7 +341,11 @@ function trendCalc(k, longOnly = true) {
   if (exiting) { action = exiting.side > 0 ? "平多" : "平空"; open = { side: pos, t0: ts[eI], p0: ent, stop, exitLv: null, days: n - eI }; }
   else if (pos) { action = pos > 0 ? "持多中" : "持空中"; open = { side: pos, t0: ts[eI], p0: ent, stop, exitLv: pos > 0 ? Math.max(ll(n, 10), stop) : Math.min(hh(n, 10), stop), days: n - eI }; }
   if (fresh) { action = fresh.side > 0 ? "开多" : "开空"; open = { side: fresh.side, t0: ts[L] + D, p0: price, stop: fresh.stop, exitLv: fresh.stop, days: 0, fresh: true }; }
-  return { action, open, exiting, trades, ev, price, barTs: ts[L], e200: e200[L], atr: atr[L],
+  // 过去 20 天日涨跌幅的标准差（趋势做多按波动率定仓位用）
+  let vs = 0, vq = 0, vn = 0;
+  for (let j = Math.max(1, L - 19); j <= L; j++) { const r = c[j] / c[j - 1] - 1; vs += r; vq += r * r; vn++; }
+  const vol20 = vn ? Math.sqrt(Math.max(vq / vn - (vs / vn) ** 2, 0)) : null;
+  return { action, open, exiting, trades, ev, price, barTs: ts[L], e200: e200[L], atr: atr[L], vol20,
     up: hh(n, 20), dn: ll(n, 20), side: price > e200[L] ? 1 : -1 };
 }
 function healthOf(trades, N = 30) {
@@ -367,6 +371,13 @@ function sizePct(entry, stop, riskPct = 1, capPct = 40, factor = 1) {
   const dist = Math.abs(stop / entry - 1);
   if (!(dist > 0)) return null;
   return { pct: Math.min(riskPct / dist, capPct) * factor, dist, tight: dist < 0.02 };
+}
+// 日线趋势做多按波动率定仓位（2026-11-07 回测）：仓位% = 0.5% ÷ 过去 20 天日涨跌幅标准差，单币最多 capPct%
+// 同样平均仓位下，近 1000 天回撤 −35% vs 按止损定仓 −43%，夏普 1.27 vs 1.16；老数据也更好
+const VOL_TARGET = 0.5;
+function sizeVol(vol, capPct = 40, factor = 1) {
+  if (!(vol > 0)) return null;
+  return { pct: Math.min(VOL_TARGET / (vol * 100) * 100, capPct) * factor, vol };
 }
 async function push(title, body, important) {
   if (!KEY) { console.log("  [试运行，不推送]", title, "|", body); return; }
@@ -412,10 +423,16 @@ async function push(title, body, important) {
         body: `最近 ${h.n} 笔模拟交易：胜率 ${Math.round(h.win * 100)}%，平均每笔 ${pctS(h.avg)}，赚亏比 ${h.pf.toFixed(2)}。${h.level === "yellow" ? "之后的建议仓位自动减半。" : h.level === "red" ? "暂停新开仓，已有的单照常按规则离场。" : "恢复正常仓位。"}` });
     state.health[sys] = h.level;
   }
-  const sizeLine = (sys, entry, stop, lev) => {
-    const h = H[sys], side = sys === "short" ? -1 : 1, z = side * (entry - stop) > 0 ? sizePct(entry, stop, 1, 40, h.factor) : null;
-    if (!z) return "仓位：现价已越过止损线，不要开仓";
+  const sizeLine = (sys, entry, stop, lev, vol) => {
+    const h = H[sys], side = sys === "short" ? -1 : 1, ok = side * (entry - stop) > 0;
+    if (!ok) return "仓位：现价已越过止损线，不要开仓";
     if (h.factor === 0) return `仓位：策略状态红灯，暂停新开仓，只看不做`;
+    if (sys === "trend") {
+      const v = sizeVol(vol, 40, h.factor);
+      if (v) { const loss = v.pct * (1 - stop / entry);
+        return `仓位：本金的 ${v.pct.toFixed(0)}%（按波动率：0.5% ÷ 20日波动 ${(vol * 100).toFixed(1)}%），打到止损约亏本金 ${loss.toFixed(1)}%，${lev}；所有多单合计不超过本金${h.factor < 1 ? `；策略${h.word}` : ""}`; }
+    }
+    const z = sizePct(entry, stop, 1, 40, h.factor);
     return `仓位：本金的 ${z.pct.toFixed(0)}%（每笔最多亏 1%），${lev}${h.factor < 1 ? `；策略${h.word}` : ""}` +
       (sys === "short" && z.tight ? `\n⚠ 止损只离 ${(z.dist * 100).toFixed(1)}%，历史上这类单胜率仅 18%，建议跳过或减半` : "");
   };
@@ -491,7 +508,7 @@ async function push(title, body, important) {
         if (t.ev.slice(idx + 1).some(x => x.act === "平多")) return;
         const p = px, stop = t.open && t.open.exitLv ? t.open.exitLv : (t.open ? t.open.stop : e.price - 2 * t.atr);
         events.push({ coin: b, kind: "topen", price: p, sigPrice: e.price, stop, sig: e.t, important: true, title: `${b} 开多 · 日线趋势${late}`,
-          body: `进场：现价 ${fmt(p)}（日线收盘 ${fmt(e.price)} 突破前 20 日最高价）\n止损：${fmt(stop)}（${pctS(stop / p - 1)}），日线收盘跌破就平；之后平仓线每天上移（前 10 日最低价）\n止盈：不设固定止盈，让利润跑\n${sizeLine("trend", p, stop, "现货或 1 倍")}` });
+          body: `进场：现价 ${fmt(p)}（日线收盘 ${fmt(e.price)} 突破前 20 日最高价）\n止损：${fmt(stop)}（${pctS(stop / p - 1)}），日线收盘跌破就平；之后平仓线每天上移（前 10 日最低价）\n止盈：不设固定止盈，让利润跑\n${sizeLine("trend", p, stop, "现货或 1 倍", t.vol20)}` });
       } else {
         const opened = [...t.ev.slice(0, idx)].reverse().find(x => x.act === "开多");
         if (opened && !sentBefore.has(`${b}|trend|${opened.t}|开多`) && NOW2 - opened.t < 2 * 86400000) return;

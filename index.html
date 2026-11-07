@@ -1003,14 +1003,15 @@ function carryPanel() {
     <p class="why">做法：一半本金买现货、一半做保证金开等量空单（1 倍），不管涨跌只收资金费。上面是按过去 7 天资金费率折算的本金年化。回测：2021 年牛市 BTC 全年约 15%，2023 年以后只有 2%～6%，小币经常是负的。年化 10% 以上才值得做，BTC、ETH 到了会推送，跌回 5% 以下提醒结束。主要看 BTC、ETH，小币资金费率变化快、容易转负。</p></div>`;
 }
 function tpTrend() { return `<b>不设固定止盈</b><i>平仓线每天上移（前 10 日最低价），日线收盘跌破就平</i>`; }
-function planBox(b, sys, side, entry, stop, tpHTML) {
+function planBox(b, sys, side, entry, stop, tpHTML, vol) {
   const { capital, risk, maxAlloc } = S.prefs, h = health(sys).h, dist = side < 0 ? stop - entry : entry - stop;
   if (!(dist > 0)) return `<p class="why">现价已越过止损线，不要开${sideW(side)}。</p>`;
-  const qty = Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / entry) * h.factor, val = qty * entry, tight = sys === "short" && dist / entry < 0.02;
+  const zv = sys === "trend" ? sizeVol(vol, maxAlloc, h.factor) : null;
+  const qty = zv ? capital * zv.pct / 100 / entry : Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / entry) * h.factor, val = qty * entry, tight = sys === "short" && dist / entry < 0.02;
   return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
     <div><span>止损</span><b class="num sl">${px(stop)}</b><i>${pctTo(stop, entry)}，${sys === "short" ? "4 小时收盘站上它就平" : "日线收盘跌破它就平"}</i></div>
     <div><span>止盈</span>${tpHTML}</div>
-    ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(val)} U${sys === "short" ? `，2 倍杠杆占保证金约 ${Math.round(val / 2)} U` : "，现货或 1 倍"}${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>
+    ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(val)} U${sys === "short" ? `，2 倍杠杆占保证金约 ${Math.round(val / 2)} U` : `，现货或 1 倍${zv ? `；按波动率定仓：0.5% ÷ 20 日波动 ${(zv.vol * 100).toFixed(1)}% = 本金的 ${zv.pct.toFixed(0)}%，所有多单合计不超过本金` : ""}`}${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>
     <div><span>打到止损最多亏</span><b class="num">${(qty * dist).toFixed(1)} U</b><i>本金的 ${(qty * dist / capital * 100).toFixed(1)}%</i></div>`
     : `<div><span>建议仓位</span><b>暂停</b><i>策略状态红灯，先只看不做</i></div>`}
     ${tight ? `<div class="warn">⚠ 止损离进场只有 ${(dist / entry * 100).toFixed(1)}%。历史上这种单胜率只有 18%，而且按风险算出的仓位最大，建议跳过或仓位减半。</div>` : ""}</div>`;
@@ -1089,7 +1090,7 @@ function todoBox(asParts) {
     } else {
       const moved = x.price / x.t.open.p0 - 1;
       text = `${x.fresh ? "刚出开多信号" : `已过 ${x.t.open.days} 天，信号价 ${px(x.t.open.p0)}，至今 <span class="num ${dir(moved)}">${pct(moved, 1)}</span>，仍可跟进`}：日线收盘突破前 20 日最高价，并且在 200 日均线上方。靠少数大波段赚钱，胜率约 4 成。`;
-      planH = planBox(x.b, "trend", 1, x.price, x.t.open.exitLv ?? x.t.open.stop, tpTrend());
+      planH = planBox(x.b, "trend", 1, x.price, x.t.open.exitLv ?? x.t.open.stop, tpTrend(), x.t.vol20);
     }
     return `<div class="titem ${ok ? "" : "dim"}"><div class="srow"><b>${x.b}</b><span>${sys(x)}${x.g ? `<span class="chip ${x.g.c}">${x.g.k}</span>` : ""}${tag}</span></div>
       <p>${text}</p>${x.sys === "short" ? gradeHTML(x.v) : ""}${planH}${followBtns(x.key, x.sys === "short" ? x.v.open.p0 : x.t.open.p0)}</div>`; }).join("")}`);
@@ -1201,12 +1202,12 @@ function overviewPage() {
     ${adSection('01 · 现在要做的事','该平仓 → 可以开仓 → 你的持仓；按等级排序，不是盈利承诺')}<section class="ad-panel todo">${!done?`<div class="ad-placeholder">加载完成后显示</div>`:(act||`<div class="ad-placeholder">现在没有要操作的。没有信号也是有效决策，等推送就行。</div>`)+(T.watch||'')+(T.twatch||'')}<p class="why">开了单就点「我开了这笔」，「你的持仓」里会显示止损线、止盈和平仓提醒。本系统没有接入交易所账户，记录存在这台设备上，换设备用「系统设置 → 同步记录」。</p></section>
     <details class="ad-fold"${load('foldOpen',0)?' open':''}><summary>账户与系统概况 · 执行纪律<span class="ad-small">${open} / ${S.prefs.maxPos} 笔持仓 · 做空${sh?esc(sh.word):'…'} · 做多${tr?esc(tr.word):'…'}${done&&errs?` · ${errs} 个币数据不全`:''}</span></summary>
       <div class="ad-hero-foot" style="margin:14px 0"><div class="ad-mini"><label>仓位资金设置</label><b>${S.prefs.capital.toLocaleString('en-US')} USDT</b><small>非交易所真实余额</small></div><div class="ad-mini"><label>单笔风险预算</label><b>${S.prefs.risk}%</b><small>实际可能超损（跳空 / 滑点）</small></div><div class="ad-mini"><label>已记录持仓</label><b>${open} / ${S.prefs.maxPos}</b><small>手动记录，非账户同步</small></div><div class="ad-mini"><label>已扫描币种</label><b>${done?scan+' / '+SYMBOLS.length:'—'}</b><small>${done&&errs?errs+' 个币数据不全，不当作确认':'数据齐全'}</small></div></div>
-      <div class="ad-framework"><div><b>① 只看收盘信号</b><p>4 小时信号在 0、4、8、12、16、20 点收盘后才算，日线在早上 8 点。盘中跌多少都不算，推送可能晚 1～2 小时，以本页为准。</p></div><div><b>② 风险预算</b><p>每笔最多亏本金 ${S.prefs.risk}%，最多同时 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，不要当成互不相关的机会。</p></div><div><b>③ 按等级取舍</b><p>做空先做 A 级；资金费率为负时 A 级已自动降为 B 级；C 级（止损不到 2%）跳过。别提前进，信号出来 2 天内都还能跟进。</p></div></div>
+      <div class="ad-framework"><div><b>① 只看收盘信号</b><p>4 小时信号在 0、4、8、12、16、20 点收盘后才算，日线在早上 8 点。盘中跌多少都不算，推送可能晚 1～2 小时，以本页为准。</p></div><div><b>② 风险预算</b><p>做空每笔最多亏本金 ${S.prefs.risk}%；趋势做多按波动率定仓（0.5% ÷ 20 日波动），多单合计不超过本金。最多同时 ${S.prefs.maxPos} 笔。13 个币经常一起涨跌，不要当成互不相关的机会。</p></div><div><b>③ 按等级取舍</b><p>做空先做 A 级；资金费率为负时 A 级已自动降为 B 级；C 级（止损不到 2%）跳过。别提前进，信号出来 2 天内都还能跟进。</p></div></div>
       <div class="ad-buttons" style="margin-top:12px"><button data-tab="settings">调整本金和风险限制</button></div></details>
     ${adSection('02 · 策略健康监控','基于现有引擎的历史样本，不是实盘成绩')}<section class="ad-panel">${done?adPipelineStatus():`<div class="ad-placeholder">加载历史数据后展示</div>`}</section>
     ${adSection('03 · 资金费率套利','买现货 + 等量空单，只收资金费；年化 10% 以上才值得做')}<section class="ad-panel">${carryPanel()||`<div class="ad-placeholder">正在获取资金费率（依次试币安合约、Gate、OKX）</div>`}</section>
     ${adSection('04 · 全部币种','点开看走势图、关键价位和每个币的历史表现')}<div class="ad-coins">${done?coinCards():''}</div>${watchSection()}
-    ${adSection('05 · 已验证的结论','规则都是跑之前定好的；详情在「策略研究」')}<div class="ad-framework"><div><b>已上线</b><p>做空信号等级 A/B/C；资金费率为负时 A 级降为 B 级；资金费率套利提醒（BTC、ETH 年化 ≥10%）。</p></div><div><b>测过、不采用</b><p>1 小时做空、提前进场 / 提前买、币圈动量轮动、持仓量与多空比、恐惧与贪婪指数、Supertrend、MVRV 过滤。</p></div><div><b>等你决定</b><p>策略状态灯对下一笔没有预测力，按灯减半 / 暂停反而少赚。建议灯只作提示，不再影响建议仓位。</p></div></div>
+    ${adSection('05 · 已验证的结论','规则都是跑之前定好的；详情在「策略研究」')}<div class="ad-framework"><div><b>已上线</b><p>趋势做多按波动率定仓（11-07）；做空信号等级 A/B/C；资金费率为负时 A 级降为 B 级；资金费率套利提醒（BTC、ETH 年化 ≥10%）。</p></div><div><b>测过、不采用</b><p>1 小时做空、提前进场 / 提前买、币圈动量轮动、持仓量与多空比、恐惧与贪婪指数、Supertrend、MVRV 过滤。</p></div><div><b>等你决定</b><p>策略状态灯对下一笔没有预测力，按灯减半 / 暂停反而少赚。建议灯只作提示，不再影响建议仓位。</p></div></div>
     <div class="ad-buttons"><button class="primary" data-tab="research">打开策略研究 →</button></div>
     <p class="ad-footer">说明：两套系统——4 小时做空（13 个主流币，日线向下时等 4 小时反弹过热再回落开空）和日线趋势做多（38 个币，突破 20 日新高开多）。历史数字已扣手续费、滑点和资金费，本页面不接收真实账户委托。回测指标和历史评分并不能证明未来盈利。做空研究用的是现货 K 线近似合约。</p>`;
 }
@@ -1389,7 +1390,7 @@ function settingsPage() {
     <h2>仓位计算</h2>
     <div class="panel">
       <label class="field">本金（USDT）<input type="number" inputmode="decimal" data-pref="capital" value="${p.capital}"></label>
-      <label class="field">每笔最多亏本金的 %<input type="number" inputmode="decimal" step="0.1" data-pref="risk" value="${p.risk}"></label>
+      <label class="field">每笔最多亏本金的 %（4 小时做空用；趋势做多按波动率自动算）<input type="number" inputmode="decimal" step="0.1" data-pref="risk" value="${p.risk}"></label>
       <label class="field">单个币最多占本金的 %<input type="number" inputmode="decimal" data-pref="maxAlloc" value="${p.maxAlloc}"></label>
       <label class="field">最多同时持有几笔（两套系统合计）<input type="number" inputmode="numeric" data-pref="maxPos" value="${p.maxPos}"></label>
       <div class="field">涨跌颜色<div class="seg"><button data-colors="cn" aria-pressed="${p.colors === "cn"}">红涨绿跌</button><button data-colors="west" aria-pressed="${p.colors === "west"}">绿涨红跌</button></div></div>
@@ -1412,7 +1413,7 @@ function settingsPage() {
       <p><b>看到「快要开空」能不能提前进？</b>回测了 545 次「快要开空」：约 76% 之后真的发出开空信号，一般再等 6～8 小时；约 24% 价格直接站回 200 均线、信号作废，提前进的这部分平均亏 3.8%。整体算下来提前进和等确认差不多，风险更大，所以等 4 小时收盘确认再进。</p>
       <p><b>开空信号出来后，多久还能跟进？</b>2 天内都可以。历史上开空后 1～2 天才跟进，胜率 56%，平均每次 +1.1%，和准时进场差不多；超过 2 天平均只剩 +0.4%，就不建议追了。满 1 天时会推送“跟进提示”。</p>
       <p><b>胜率不到一半，为什么还能赚？</b>这种做法赚的时候平均比亏的时候多，所以胜率 40% 左右也能赚钱。胜率又高又稳定赚钱的短线方法基本不存在；真正要做的是只做顺大势的一边、每次都止损、亏得少，让赚的那几次把钱赚回来。</p>
-      <p><b>风险：</b>做空近 1000 天最多连亏过 19 次，单次最差约 -15%（不加杠杆）；趋势做多单次最差约 -25%。所以每次最多亏本金的 1%，做空杠杆不超过 2 倍，做多用现货或 1 倍。</p>
+      <p><b>风险：</b>做空近 1000 天最多连亏过 19 次，单次最差约 -15%（不加杠杆）；趋势做多单次最差约 -25%。所以做空每次最多亏本金的 1%、杠杆不超过 2 倍；做多用现货或 1 倍，仓位按波动率算（0.5% ÷ 这个币过去 20 天每天涨跌幅的标准差），波动大的币买得少，所有多单合计不超过本金。2026-11-07 回测：同样仓位下，比按止损定仓回撤更小（近 1000 天 −35% 对 −43%）。</p>
       <p><b>「买卖了 14 次」是谁的交易？</b>不是你的，也不是任何人的真实交易。是历史模拟：假设有人从几年前开始严格按这条规则自动买卖，会买卖多少次、最后赚还是亏。用来判断这条规则过去靠不靠谱。</p>
       <p><b>可信度怎么来的？</b>历史模拟里扣完手续费：赚的钱是亏的钱 1.3 倍以上 →「较可信」；1 到 1.3 倍 →「一般」；亏钱 →「历史上亏钱」；买卖少于 8 次 →「样本太少」。过去靠谱不代表以后一定赚。</p>
       <p><b>首页的结论怎么来的？</b>每个周期只让「较可信」和「一般」的规则投票，过半看多就算看多。然后看日线（大方向）和 4 小时（中期）：都看多 = 趋势向上；只有日线看多 = 回调中；只有 4 小时看多 = 反弹；都看空 = 下跌趋势；其他 = 观望。30 分钟用来判断买点时机。</p>
@@ -1481,7 +1482,11 @@ function trendCalc(k, longOnly = true) {
   if (exiting) { action = exiting.side > 0 ? "平多" : "平空"; open = { side: pos, t0: ts[eI], p0: ent, stop, exitLv: null, days: n - eI }; }
   else if (pos) { action = pos > 0 ? "持多中" : "持空中"; open = { side: pos, t0: ts[eI], p0: ent, stop, exitLv: pos > 0 ? Math.max(ll(n, 10), stop) : Math.min(hh(n, 10), stop), days: n - eI }; }
   if (fresh) { action = fresh.side > 0 ? "开多" : "开空"; open = { side: fresh.side, t0: ts[L] + D, p0: price, stop: fresh.stop, exitLv: fresh.stop, days: 0, fresh: true }; }
-  return { action, open, exiting, trades, ev, price, barTs: ts[L], e200: e200[L], atr: atr[L],
+  // 过去 20 天日涨跌幅的标准差（趋势做多按波动率定仓位用）
+  let vs = 0, vq = 0, vn = 0;
+  for (let j = Math.max(1, L - 19); j <= L; j++) { const r = c[j] / c[j - 1] - 1; vs += r; vq += r * r; vn++; }
+  const vol20 = vn ? Math.sqrt(Math.max(vq / vn - (vs / vn) ** 2, 0)) : null;
+  return { action, open, exiting, trades, ev, price, barTs: ts[L], e200: e200[L], atr: atr[L], vol20,
     up: hh(n, 20), dn: ll(n, 20), side: price > e200[L] ? 1 : -1 };
 }
 function healthOf(trades, N = 30) {
@@ -1507,6 +1512,13 @@ function sizePct(entry, stop, riskPct = 1, capPct = 40, factor = 1) {
   const dist = Math.abs(stop / entry - 1);
   if (!(dist > 0)) return null;
   return { pct: Math.min(riskPct / dist, capPct) * factor, dist, tight: dist < 0.02 };
+}
+// 日线趋势做多按波动率定仓位（2026-11-07 回测）：仓位% = 0.5% ÷ 过去 20 天日涨跌幅标准差，单币最多 capPct%
+// 同样平均仓位下，近 1000 天回撤 −35% vs 按止损定仓 −43%，夏普 1.27 vs 1.16；老数据也更好
+const VOL_TARGET = 0.5;
+function sizeVol(vol, capPct = 40, factor = 1) {
+  if (!(vol > 0)) return null;
+  return { pct: Math.min(VOL_TARGET / (vol * 100) * 100, capPct) * factor, vol };
 }
 function srLevels(k, look = 180, w = 3) {
   const n = k.c.length, { h, l, c } = k, from = Math.max(w + 1, n - look);
