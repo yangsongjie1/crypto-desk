@@ -23,23 +23,25 @@
   "ETH|swing|1793908800000|开空",
   "XRP|swing|1793908800000|平空",
   "BTC|follow|1793908800000",
-  "ETH|follow|1793908800000"
+  "ETH|follow|1793908800000",
+  "BTC|swing|1794168000000|平空",
+  "ETH|swing|1794168000000|平空"
  ],
  "swing": {
   "BTC": {
    "dir": -1,
-   "action": "持空中"
+   "action": "平空"
   },
   "ETH": {
    "dir": -1,
-   "action": "持空中"
+   "action": "平空"
   },
   "SOL": {
    "dir": -1,
    "action": "观望"
   },
   "BNB": {
-   "dir": 0,
+   "dir": -1,
    "action": "观望"
   },
   "XRP": {
