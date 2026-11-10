@@ -203,6 +203,8 @@ nav button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .ad-coins{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:12px;align-items:start}.ad-coins .card{margin:0}.ad-coins .oldbtn{grid-column:1/-1}
 @media(max-width:760px){.ad-coins{grid-template-columns:1fr}}
 .carry .srow{margin-bottom:6px}
+.carry .frnow{font-style:normal;font-size:12px;color:var(--muted);margin-left:8px;white-space:nowrap}
+.carry .frnow b.fp{color:var(--green)} .carry .frnow b.fn{color:var(--red)}
 :root { --bg:#090e17; --surface:#121b29; --sunk:#0d1521; --ink:#e9f0fa; --muted:#8c9bb0; --line:#253247; --accent:#65a2ff; --green:#2cd5a0; --red:#fa7185; --up:#2cd5a0; --down:#fa7185; color-scheme:dark; }
 @media (prefers-color-scheme:dark) { :root { --bg:#090e17; --surface:#121b29; --sunk:#0d1521; --ink:#e9f0fa; --muted:#8c9bb0; --line:#253247; --accent:#65a2ff; --green:#2cd5a0; --red:#fa7185; --up:#2cd5a0; --down:#fa7185; } }
 :root.west { --up:#2cd5a0; --down:#fa7185; }
@@ -624,22 +626,36 @@ async function diagnose() {
   S.testing = false; render();
 }
 // ----- 资金费率（2026-11-06 回测）：过去 7 天结算记录，依次试 Binance 合约、Gate、OKX -----
+// 2026-11-09 加：cur = 交易所当期（下一次结算）的资金费率，只用来显示，不参与"值得 / 不值得"判断
 async function fundingOf(b) {
   const since = Date.now() - 7 * 86400000, tries = [
-    async () => (await getJSON(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${b}${QUOTE}&startTime=${since}&limit=100`)).map(x => [+x.fundingTime, +x.fundingRate]),
-    async () => (await getJSON(`https://api.gateio.ws/api/v4/futures/usdt/funding_rate?contract=${b}_${QUOTE}&limit=60`)).map(x => [+x.t * 1000, +x.r]),
-    async () => (await getJSON(`https://www.okx.com/api/v5/public/funding-rate-history?instId=${b}-${QUOTE}-SWAP&limit=60`)).data.map(x => [+x.fundingTime, +(x.realizedRate || x.fundingRate)]),
+    [async () => (await getJSON(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${b}${QUOTE}&startTime=${since}&limit=100`)).map(x => [+x.fundingTime, +x.fundingRate]),
+     async () => +(await getJSON(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${b}${QUOTE}`)).lastFundingRate],
+    [async () => (await getJSON(`https://api.gateio.ws/api/v4/futures/usdt/funding_rate?contract=${b}_${QUOTE}&limit=60`)).map(x => [+x.t * 1000, +x.r]),
+     async () => +(await getJSON(`https://api.gateio.ws/api/v4/futures/usdt/contracts/${b}_${QUOTE}`)).funding_rate],
+    [async () => (await getJSON(`https://www.okx.com/api/v5/public/funding-rate-history?instId=${b}-${QUOTE}-SWAP&limit=60`)).data.map(x => [+x.fundingTime, +(x.realizedRate || x.fundingRate)]),
+     async () => +(await getJSON(`https://www.okx.com/api/v5/public/funding-rate?instId=${b}-${QUOTE}-SWAP`)).data[0].fundingRate],
   ];
-  for (const f of tries) {
+  for (const [hist, now] of tries) {
     try {
-      const r = (await f()).filter(x => x[0] >= since && isFinite(x[1])).sort((a, c) => a[0] - c[0]);
+      const curP = now().then(v => isFinite(v) ? v : null, () => null);   // 和历史记录同时请求，拿不到就不显示
+      const r = (await hist()).filter(x => x[0] >= since && isFinite(x[1])).sort((a, c) => a[0] - c[0]);
       if (r.length < 3) continue;
       const last3 = r.slice(-3), days = Math.max((Date.now() - r[0][0]) / 86400000, 1);
+      const cur = await curP;
+      const hrs = Math.round((r[r.length - 1][0] - r[r.length - 2][0]) / 3600000);   // 结算间隔（多数币 8 小时）
       // now：最近 3 次结算平均（回测口径）；carry：买现货 + 等量空单的本金年化（一半现货一半保证金）
-      return { now: last3.reduce((s, x) => s + x[1], 0) / 3, carry: r.reduce((s, x) => s + x[1], 0) / days * 365 * 0.5, u: Date.now() };
+      return { now: last3.reduce((s, x) => s + x[1], 0) / 3, carry: r.reduce((s, x) => s + x[1], 0) / days * 365 * 0.5,
+        cur, hrs: hrs > 0 ? hrs : 8, u: Date.now() };
     } catch (e) {}
   }
   return null;
+}
+// 本期费率：正数绿色、负数红色（固定颜色，不跟涨跌配色走）；不是 8 小时结算的币注明间隔
+function frNow(f) {
+  if (!f || f.cur == null) return "";
+  const v = f.cur, cls = v > 0 ? "fp" : v < 0 ? "fn" : "";
+  return `<i class="frnow">本期 <b class="num ${cls}">${v > 0 ? "+" : ""}${(v * 100).toFixed(4)}%</b>${f.hrs !== 8 ? `/${f.hrs}h` : ""}</i>`;
 }
 async function loadFunding() {
   await Promise.all(SHORT_SET.map(async b => { const f = await fundingOf(b); if (f) S.fund[b] = f; }));
@@ -953,8 +969,9 @@ function nextClose4h() { const n = Date.now(), t = Math.ceil(n / 14400000) * 144
 // ===== 两套系统：4 小时做空 + 日线趋势做多 =====
 // 全历史（2018 年起，币安数据，2026-10-31 回测；已扣手续费、滑点、资金费）
 // 做空：13 个币；趋势做多：38 个币（2026-11-01 回测）
-const HIST = { short: { n: 649, win: 39, avg: 0.0 }, trend: { n: 696, win: 39, avg: 15.2 } };
-const SYSN = { short: "4小时做空", trend: "日线趋势做多" }, SYSC = { short: 13, trend: 38 };
+// 4 小时双轨做多：13 个币，2018-06 起（2026-11-11 回测）
+const HIST = { short: { n: 649, win: 39, avg: 0.0 }, trend: { n: 696, win: 39, avg: 15.2 }, qx: { n: 1689, win: 38, avg: 3.2 } };
+const SYSN = { short: "4小时做空", trend: "日线趋势做多", qx: "4小时双轨做多" }, SYSC = { short: 13, trend: 38, qx: 13 };
 const TR = {};
 function trendFor(b) {
   const c1 = S.coins[b].tf["1d"]; if (!c1?.k) return null;
@@ -962,11 +979,19 @@ function trendFor(b) {
   if (TR[b]?.key !== key) TR[b] = { key, v: trendCalc(c1.k, true) };
   return TR[b].v;
 }
+const QX = {};
+function qxFor(b) {
+  if (!SHORT_SET.includes(b)) return null;
+  const c4 = S.coins[b].tf["4h"]; if (!c4?.k) return null;
+  const key = c4.k.ts.at(-1) + "|" + c4.k.c.length;
+  if (QX[b]?.key !== key) QX[b] = { key, v: qxCalc(c4.k) };
+  return QX[b].v;
+}
 function sysTrades(sys) {
   const out = [];
   for (const b of SYMBOLS) {
-    const v = sys === "short" ? swingFor(b) : trendFor(b); if (!v) continue;
-    for (const t of v.trades) if (sys === "trend" || t.side < 0) out.push({ ...t, b });
+    const v = sys === "short" ? swingFor(b) : sys === "qx" ? qxFor(b) : trendFor(b); if (!v) continue;
+    for (const t of v.trades) if (sys !== "short" || t.side < 0) out.push({ ...t, b });
   }
   return out;
 }
@@ -987,7 +1012,7 @@ function statusPanel() {
       <p>${h.n >= 15 ? `最近 ${h.n} 笔：胜率 ${Math.round(h.win * 100)}%，平均每笔 <b class="${dir(h.avg)}">${sgn(h.avg * 100)}</b>，盈亏比 ${h.pf.toFixed(2)}` : "最近的交易太少，先不判断"}</p>
       <p>近 1000 天：${recent ? `${recent.n} 次，胜率 ${recent.win}%，平均 ${sgn(recent.avg)}` : "—"}　｜　2018 年起：${H.n} 次，胜率 ${H.win}%，平均 ${sgn(H.avg)}</p></div>`;
   };
-  return `<section class="status"><h2 class="th2">策略状态</h2>${row("short")}${row("trend")}
+  return `<section class="status"><h2 class="th2">策略状态</h2>${row("short")}${row("trend")}${row("qx")}
     <p class="why">看最近 30 笔模拟交易：赚的是亏的 1.1 倍以上为绿灯；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓（已有的单照常按规则离场）。状态变化会推送。两套系统一个做空、一个做多，通常一个好的时候另一个差，所以一起跑。</p></section>`;
 }
 // 资金费率套利（2026-11-06 回测）：本金一半买现货、一半开等量空单，只收资金费。过去 7 天年化 ≥10% 才值得做
@@ -996,25 +1021,35 @@ function carryPanel() {
   if (!list.length) return "";
   const word = c => c >= 0.10 ? ["值得考虑", "win"] : c >= 0.05 ? ["一般", "dnone"] : c > 0 ? ["不值得", "dnone"] : ["倒贴钱", "loss"];
   const main = ["BTC", "ETH"].filter(b => S.fund[b]).map(b => { const f = S.fund[b], [w, c] = word(f.carry);
-    return `<div class="srow"><span><b>${b}</b> 年化 <b class="num ${dir(f.carry)}">${pct(f.carry, 1)}</b></span><span class="chip ${c}">${w}</span></div>`; }).join("");
-  const others = list.filter(x => x.b !== "BTC" && x.b !== "ETH").map(x => `<span><b>${x.b}</b> ${pct(x.carry, 1)}</span>`).join("");
+    return `<div class="srow"><span><b>${b}</b> 年化 <b class="num ${dir(f.carry)}">${pct(f.carry, 1)}</b>${frNow(f)}</span><span class="chip ${c}">${w}</span></div>`; }).join("");
+  const others = list.filter(x => x.b !== "BTC" && x.b !== "ETH").map(x => `<span><b>${x.b}</b> ${pct(x.carry, 1)}${frNow(x)}</span>`).join("");
   return `<div class="carry">${main}
     <div class="wlist">${others}</div>
-    <p class="why">做法：一半本金买现货、一半做保证金开等量空单（1 倍），不管涨跌只收资金费。上面是按过去 7 天资金费率折算的本金年化。回测：2021 年牛市 BTC 全年约 15%，2023 年以后只有 2%～6%，小币经常是负的。年化 10% 以上才值得做，BTC、ETH 到了会推送，跌回 5% 以下提醒结束。主要看 BTC、ETH，小币资金费率变化快、容易转负。</p></div>`;
+    <p class="why">做法：一半本金买现货、一半做保证金开等量空单（1 倍），不管涨跌只收资金费。上面是按过去 7 天资金费率折算的本金年化；「本期」是交易所当前这一期（每 8 小时结算一次）的费率，绿色 = 多头付钱给空头，红色 = 空头付钱，只作参考，不影响"值得 / 不值得"。回测：2021 年牛市 BTC 全年约 15%，2023 年以后只有 2%～6%，小币经常是负的。年化 10% 以上才值得做，BTC、ETH 到了会推送，跌回 5% 以下提醒结束。主要看 BTC、ETH，小币资金费率变化快、容易转负。</p></div>`;
 }
 function tpTrend() { return `<b>不设固定止盈</b><i>平仓线每天上移（前 10 日最低价），日线收盘跌破就平</i>`; }
 function planBox(b, sys, side, entry, stop, tpHTML, vol) {
   const { capital, risk, maxAlloc } = S.prefs, h = health(sys).h, dist = side < 0 ? stop - entry : entry - stop;
   if (!(dist > 0)) return `<p class="why">现价已越过止损线，不要开${sideW(side)}。</p>`;
-  const zv = sys === "trend" ? sizeVol(vol, maxAlloc, h.factor) : null;
+  const zv = sys === "trend" ? sizeVol(vol, maxAlloc, h.factor * LONG_SPLIT) : null;
   const qty = zv ? capital * zv.pct / 100 / entry : Math.min(capital * risk / 100 / dist, capital * maxAlloc / 100 / entry) * h.factor, val = qty * entry, tight = sys === "short" && dist / entry < 0.02;
   return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
     <div><span>止损</span><b class="num sl">${px(stop)}</b><i>${pctTo(stop, entry)}，${sys === "short" ? "4 小时收盘站上它就平" : "日线收盘跌破它就平"}</i></div>
     <div><span>止盈</span>${tpHTML}</div>
-    ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(val)} U${sys === "short" ? `，2 倍杠杆占保证金约 ${Math.round(val / 2)} U` : `，现货或 1 倍${zv ? `；按波动率定仓：0.5% ÷ 20 日波动 ${(zv.vol * 100).toFixed(1)}% = 本金的 ${zv.pct.toFixed(0)}%，所有多单合计不超过本金` : ""}`}${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>
+    ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(val)} U${sys === "short" ? `，2 倍杠杆占保证金约 ${Math.round(val / 2)} U` : `，现货或 1 倍${zv ? `；按波动率定仓：0.5% ÷ 20 日波动 ${(zv.vol * 100).toFixed(1)}%，再 × 一半资金 = 本金的 ${zv.pct.toFixed(0)}%（日线趋势、4 小时双轨两套做多各用一半资金）` : ""}`}${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>
     <div><span>打到止损最多亏</span><b class="num">${(qty * dist).toFixed(1)} U</b><i>本金的 ${(qty * dist / capital * 100).toFixed(1)}%</i></div>`
     : `<div><span>建议仓位</span><b>暂停</b><i>策略状态红灯，先只看不做</i></div>`}
     ${tight ? `<div class="warn">⚠ 止损离进场只有 ${(dist / entry * 100).toFixed(1)}%。历史上这种单胜率只有 18%，而且按风险算出的仓位最大，建议跳过或仓位减半。</div>` : ""}</div>`;
+}
+function qxPlan(b, entry, q, vol) {
+  const { capital, maxAlloc } = S.prefs, h = health("qx").h, zv = sizeVol(vol, maxAlloc, h.factor * LONG_SPLIT);
+  const qty = zv ? capital * zv.pct / 100 / entry : 0, toY = q.l2 / entry - 1;
+  return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
+    <div><span>离场</span><b>4 小时双轨死叉</b><i>红线跌破黄线超过 0.1 倍波动就卖，不设固定止损价。黄线现在 ${px(q.l2)}（${pct(toY, 1)}），收盘跌到黄线附近要留意</i></div>
+    <div><span>止盈</span><b>不设目标价</b><i>等死叉才卖，让利润跑</i></div>
+    ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(qty * entry)} U，现货或 1 倍；0.5% ÷ 20 日波动 ${(zv.vol * 100).toFixed(1)}%，再 × 一半资金 = 本金的 ${zv.pct.toFixed(0)}%${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>
+    ${toY < 0 ? `<div><span>跌到黄线约亏</span><b class="num">${(qty * (entry - q.l2)).toFixed(1)} U</b><i>本金的 ${(qty * (entry - q.l2) / capital * 100).toFixed(1)}%（参考，实际按死叉离场）</i></div>` : ""}`
+    : h.factor === 0 ? `<div><span>建议仓位</span><b>暂停</b><i>策略状态红灯，先只看不做</i></div>` : ""}</div>`;
 }
 function followBtns(key, p0) { const f = S.follow[key]; return `<div class="follow"><button data-follow="${key}" data-v="1" data-p0="${p0}" aria-pressed="${f === 1}">我开了这笔</button><button data-follow="${key}" data-v="0" aria-pressed="${f === 0}">不开</button></div>`; }
 // ----- 实际成交 -----
@@ -1068,6 +1103,18 @@ function todoBox(asParts) {
       if (last && NOW - last.t1 < 2 * 86400000) { const key = `${b}|trend|${last.t0}`; if (S.follow[key] === 1) exit.push({ sys: "trend", b, key, mine: true, price: p, p0: last.p0, side: 1, done: last, why: trendWhy(last.why) }); }
       if (!t.open && t.side > 0 && p < t.up && t.up / p - 1 < 0.03) twatch.push({ b, t, p });
     }
+    const q = qxFor(b);
+    if (q) {
+      const p = priceOf(b) ?? q.price;
+      if (q.open) {
+        const key = `${b}|qx|${q.open.t0}`, mine = S.follow[key] === 1;
+        if (q.exiting) { if (S.follow[key] !== 2) exit.push({ sys: "qx", b, key, mine, price: p, p0: q.open.p0, side: 1, why: "4 小时双轨死叉" }); }
+        else if (mine) hold.push({ sys: "qx", b, q, key, price: p, p0: q.open.p0, side: 1 });
+        else if (q.open.bars <= 6) go.push({ sys: "qx", b, q, t, key, price: p, fresh: q.action === "开多", score: 0 });
+      }
+      const last = q.trades.at(-1);
+      if (last && NOW - last.t1 < 86400000) { const key = `${b}|qx|${last.t0}`; if (S.follow[key] === 1) exit.push({ sys: "qx", b, key, mine: true, price: p, p0: last.p0, side: 1, done: last, why: "4 小时双轨死叉" }); }
+    }
   }
   const held = hold.length + exit.filter(x => x.mine && !x.done).length, slots = Math.max(0, S.prefs.maxPos - held);
   const gr = x => x.g ? GRADE_RANK[x.g.key] : 0;
@@ -1087,16 +1134,22 @@ function todoBox(asParts) {
       text = `${late}${x.fresh ? "" : `，信号价 ${px(x.v.open.p0)}，至今 <span class="num ${dir(moved)}">${moved >= 0 ? "已跌" : "已涨"} ${Math.abs(moved * 100).toFixed(1)}%</span>`}。${x.s.n ? `这个币近 1000 天这样做空 ${x.s.n} 次，胜率 ${x.s.win}%，平均每次 ${sgn(x.s.avg)}。` : ""}`;
       const L = levelsFor(x.b), tp = L && L.tp && L.tp < x.price ? `<b class="num tp">≈ ${px(L.tp)}</b><i>${pctTo(L.tp, x.price)}，以 4 小时 RSI 跌破 35 为准</i>` : `<b>4 小时 RSI 跌到 35 以下</b>`;
       planH = planBox(x.b, "short", -1, x.price, x.v.stop, tp);
+    } else if (x.sys === "qx") {
+      const moved = x.price / x.q.open.p0 - 1, hrs = x.q.open.bars * 4;
+      text = `${x.fresh ? "刚出开多信号" : `已过 ${hrs} 小时，信号价 ${px(x.q.open.p0)}，至今 <span class="num ${dir(moved)}">${pct(moved, 1)}</span>，1 天内仍可跟进`}：4 小时双轨金叉（红线 EMA5 上穿黄线 EMA34），热力图有红柱（现在 ${mmFmt(x.q.mm)}）。只做多，死叉就卖；胜率约 4 成，靠少数大波段赚钱。`;
+      planH = qxPlan(x.b, x.price, x.q, x.t ? x.t.vol20 : null);
     } else {
       const moved = x.price / x.t.open.p0 - 1;
       text = `${x.fresh ? "刚出开多信号" : `已过 ${x.t.open.days} 天，信号价 ${px(x.t.open.p0)}，至今 <span class="num ${dir(moved)}">${pct(moved, 1)}</span>，仍可跟进`}：日线收盘突破前 20 日最高价，并且在 200 日均线上方。靠少数大波段赚钱，胜率约 4 成。`;
       planH = planBox(x.b, "trend", 1, x.price, x.t.open.exitLv ?? x.t.open.stop, tpTrend(), x.t.vol20);
     }
     return `<div class="titem ${ok ? "" : "dim"}"><div class="srow"><b>${x.b}</b><span>${sys(x)}${x.g ? `<span class="chip ${x.g.c}">${x.g.k}</span>` : ""}${tag}</span></div>
-      <p>${text}</p>${x.sys === "short" ? gradeHTML(x.v) : ""}${planH}${followBtns(x.key, x.sys === "short" ? x.v.open.p0 : x.t.open.p0)}</div>`; }).join("")}`);
+      <p>${text}</p>${x.sys === "short" ? gradeHTML(x.v) : ""}${planH}${followBtns(x.key, x.sys === "short" ? x.v.open.p0 : x.sys === "qx" ? x.q.open.p0 : x.t.open.p0)}</div>`; }).join("")}`);
   if (hold.length) (P.hold = `<h3>你的持仓</h3>${hold.map(x => {
     const f = fillOf(x.key), real = f && !f.est, e = real ? f.entry : x.p0, g = pnl({ side: x.side, entry: e, qty: real ? f.qty : null }, x.price);
     const lv = x.sys === "short" ? holdLevels(x.b, e, x.price)
+      : x.sys === "qx" ? `<div class="lv"><span>离场</span><b class="sl">4 小时双轨死叉</b><i>黄线现在 ${px(x.q.l2)}（距现价 ${pctTo(x.q.l2, x.price)}），收盘跌到黄线附近要留意；出死叉会推送</i>
+         <span>止盈</span><b class="tp">不固定</b><i>等死叉才卖，让利润跑</i></div>`
       : `<div class="lv"><span>平仓线</span><b class="sl">${px(x.t.open.exitLv)}</b><i>日线收盘跌破就平；距现价 ${pctTo(x.t.open.exitLv, x.price)}，这笔约 ${pct(x.t.open.exitLv / e - 1 - 2 * FEE, 1)}</i>
          <span>止盈</span><b class="tp">不固定</b><i>平仓线每天跟着上移，让利润跑</i></div>`;
     return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip open">拿着</span></span></div>
@@ -1135,7 +1188,28 @@ function trendBox(b) {
     <p>${trendLine(b).replace(/<p class="tline">|<\/p>/g, "")}</p>${lv}
     <p class="why">规则：日线收盘突破前 20 日最高价、并且在 200 日均线上方就开多；收盘跌破前 10 日最低价（或开仓时的 2 倍波动止损）就平。不猜顶，让利润跑，所以胜率只有 4 成左右，靠少数大涨赚钱。${mine ? `${b} 近几年按这条规则做多 ${mine.n} 次，胜率 ${mine.win}%，平均每次 ${sgn(mine.avg)}。` : ""}</p></div>`;
 }
-function coinCard(b) { return `<button class="card" data-coin="${b}"><div class="ctop">${priceLine(b)}</div>${swingBox(b)}${trendLine(b)}<span class="more">看走势图和详细说明 ›</span></button>`; }
+function qxLine(b) {
+  const q = qxFor(b); if (!q) return "";
+  const p = priceOf(b) ?? q.price, paused = health("qx").h.factor === 0 ? "（策略暂停中，只看不做）" : "";
+  let s;
+  if (q.action === "开多") s = `<b class="up">刚出开多信号</b>（金叉 + 红柱 ${mmFmt(q.mm)}），参考 ${px(p)}${paused}`;
+  else if (q.action === "平多") s = `<b>发出平多信号</b>（死叉），多单离场`;
+  else if (q.action === "持多中") s = `<b class="up">持多中</b> ${q.open.bars * 4 < 24 ? `${q.open.bars * 4} 小时` : `${(q.open.bars / 6).toFixed(1)} 天`}，黄线 ${px(q.l2)}（${pctTo(q.l2, p)}），死叉就卖`;
+  else if (q.phase === "bear") s = `看空（红线在黄线下方），不做；等金叉`;
+  else s = `看多但没有新信号（金叉时没红柱或已错过），等下一次金叉${paused}`;
+  return `<p class="tline"><span class="chip sys">4h 双轨</span>${s}</p>`;
+}
+function qxBox(b) {
+  const q = qxFor(b); if (!q) return "";
+  const p = priceOf(b) ?? q.price, mine = statsOf(q.trades), { h } = health("qx");
+  return `<div class="box"><div class="srow"><h3>4 小时双轨做多</h3><span class="stw ${h.level}"><i class="dot ${h.level}"></i>${h.word}</span></div>
+    <p>${qxLine(b).replace(/<p class="tline">|<\/p>/g, "")}</p>
+    <div class="lv"><span>红线 EMA5</span><b>${px(q.l1)}</b><i>${q.l1 > q.l2 ? "在黄线上方" : "在黄线下方"}</i>
+      <span>黄线 EMA34</span><b>${px(q.l2)}</b><i>距现价 ${pctTo(q.l2, p)}</i>
+      <span>热力红柱</span><b>${mmFmt(q.mm)}</b><i>${q.mm > 0 ? "有红柱（主力强度 >0），金叉可以买" : "没有红柱，这时金叉不买"}；热度 ${q.hot.toFixed(1)}${q.hot >= 16 ? "（绿色过热区）" : ""}</i></div>
+    <p class="why">规则（2026-11-11 回测）：4 小时双轨金叉（红线比黄线高出 0.1 倍波动）且热力图有红柱就买，死叉就卖；只做多，死叉不反手做空（做空在所有周期都亏）。和日线趋势做多各用一半资金。13 个币回测：近 1000 天赚亏比 1.59，2018–2024 年 2.18；同一币两套都拿着时合计最多 40%。${mine ? `${b} 最近这段按这条规则做多 ${mine.n} 次，胜率 ${mine.win}%，平均每次 ${sgn(mine.avg)}。` : ""}</p></div>`;
+}
+function coinCard(b) { return `<button class="card" data-coin="${b}"><div class="ctop">${priceLine(b)}</div>${swingBox(b)}${trendLine(b)}${qxLine(b)}<span class="more">看走势图和详细说明 ›</span></button>`; }
 function coinCards() {
   const sorted = [...SYMBOLS].sort((x, y) => rank(x) - rank(y));
   const main = sorted.filter(b => SHORT_SET.includes(b) || rankT(b) < 5), rest = sorted.filter(b => !main.includes(b));
@@ -1152,7 +1226,7 @@ function adSection(title,sub=''){return `<div class="ad-section-head"><h2>${titl
 function adPipelineStatus(){
   const sh=health('short').h,tr=health('trend').h;
   const row=(nm,h,num)=>`<tr><td><b>${nm}</b><br><span class="ad-small">${num}</span></td><td><span class="ad-pill ${h.level==='green'?'':'dim'}">${esc(h.word)}</span></td><td class="num">${h.n>=15?adFmt(h.avg):'样本不足'}</td><td class="num">${h.pf!=null?h.pf.toFixed(2):'—'}</td><td><button data-tab="journal">复盘验证</button></td></tr>`;
-  return `<div class="ad-table-scroll"><table class="ad-table"><thead><tr><th>已启用策略</th><th>最近表现</th><th>近30笔平均收益*</th><th>近期盈亏比*</th><th>验证</th></tr></thead><tbody>${row('4小时反弹做空',sh,'13个主流币')}${row('日线突破做多',tr,'38个币')}</tbody></table></div><div class="ad-note">* 此处使用现有策略引擎计算的历史模拟样本，不是账户实际收益。状态灯只反映近期回测表现，存在样本偏差，不能直接当成前瞻盈利概率。</div>`;
+  return `<div class="ad-table-scroll"><table class="ad-table"><thead><tr><th>已启用策略</th><th>最近表现</th><th>近30笔平均收益*</th><th>近期盈亏比*</th><th>验证</th></tr></thead><tbody>${row('4小时反弹做空',sh,'13个主流币')}${row('日线突破做多',tr,'38个币 · 一半资金')}${row('4小时双轨做多',health('qx').h,'13个主流币 · 一半资金')}</tbody></table></div><div class="ad-note">* 此处使用现有策略引擎计算的历史模拟样本，不是账户实际收益。状态灯只反映近期回测表现，存在样本偏差，不能直接当成前瞻盈利概率。</div>`;
 }
 // 市场状态（2026-11-06）：不预测涨跌，只把「现在是什么市况、两套系统该怎么做」合成一句话
 function marketState() {
@@ -1165,6 +1239,7 @@ function marketState() {
   const hot = sw.filter(v => v.dir < 0 && v.phase === "hot").length;
   const trendOpen = SYMBOLS.filter(b => { const t = trendFor(b); return t && t.open; }).length;
   const trendNew = SYMBOLS.filter(b => { const t = trendFor(b); return t && t.open && t.open.days <= 2; }).length;
+  const qxNew = SHORT_SET.filter(b => { const q = qxFor(b); return q && q.open && !q.exiting && q.open.bars <= 6; }).length;
   const btcW = btc < 0 ? "BTC 日线向下" : btc > 0 ? "BTC 日线向上" : "BTC 日线方向不明";
   let kind, head, todo;
   if (btc < 0 || down >= Math.ceil(n * 0.6)) {
@@ -1173,7 +1248,7 @@ function marketState() {
       trendOpen ? `手上的趋势多单（${trendOpen} 个币在持多）按平仓线走，跌破就平，不要扛。` : `趋势做多基本没有信号，正常。`];
   } else if (btc > 0 && up >= Math.ceil(n * 0.6)) {
     kind = "bull"; head = `上涨市：${btcW}，13 个主流币里 ${up} 个日线向上`;
-    todo = [`以日线趋势做多为主。${trendNew ? `现在有 <b>${trendNew} 个</b>新的做多信号。` : "等收盘突破 20 日新高再买，别追盘中。"}`,
+    todo = [`以做多为主（日线趋势、4 小时双轨各用一半资金）。${trendNew || qxNew ? `现在有日线趋势 <b>${trendNew} 个</b>、4 小时双轨 <b>${qxNew} 个</b>新的做多信号。` : "等日线收盘突破 20 日新高、或 4 小时双轨金叉 + 红柱再买，别追盘中。"}`,
       `做空系统只在日线向下的币上做，现在机会少是正常的。`];
   } else {
     kind = "mixed"; head = `方向不明：${btcW}，${down} 个向下、${up} 个向上`;
@@ -1185,7 +1260,7 @@ function marketState() {
   const btcCh = S.coins.BTC?.change;
   if (avg != null && (avg <= -0.05 || (btcCh != null && btcCh <= -0.06)) && down >= Math.ceil(n * 0.5))
     todo.push(`<b>大跌之后别追</b>：历史上日线向下时 24 小时跌 6% 以上之后，接下来 24 小时继续跌的只有 46%（老数据 38%），反弹反而更常见，24 小时内常见反弹 3%～6%。接下来几小时涨跌基本是一半一半，等反弹过热再空更划算。`);
-  return { kind, head, todo, today, facts: [["BTC 日线", btc < 0 ? "向下" : btc > 0 ? "向上" : "不明"], ["日线向下", `${down} / ${n}`], ["今天在跌", ch.length ? `${falling} / ${ch.length}` : "—"], ["可开做空", `${shortsNow}`], ["新做多信号", `${trendNew}`]] };
+  return { kind, head, todo, today, facts: [["BTC 日线", btc < 0 ? "向下" : btc > 0 ? "向上" : "不明"], ["日线向下", `${down} / ${n}`], ["今天在跌", ch.length ? `${falling} / ${ch.length}` : "—"], ["可开做空", `${shortsNow}`], ["新做多信号", `${trendNew + qxNew}`]] };
 }
 function overviewPage() {
   const done=S.progress.done>=S.progress.total, errs=Object.keys(S.coins).filter(b=>SYMBOLS.includes(b)&&!S.coins[b].tf['1d']?.res).length;
@@ -1207,9 +1282,9 @@ function overviewPage() {
     ${adSection('02 · 策略健康监控','基于现有引擎的历史样本，不是实盘成绩')}<section class="ad-panel">${done?adPipelineStatus():`<div class="ad-placeholder">加载历史数据后展示</div>`}</section>
     ${adSection('03 · 资金费率套利','买现货 + 等量空单，只收资金费；年化 10% 以上才值得做')}<section class="ad-panel">${carryPanel()||`<div class="ad-placeholder">正在获取资金费率（依次试币安合约、Gate、OKX）</div>`}</section>
     ${adSection('04 · 全部币种','点开看走势图、关键价位和每个币的历史表现')}<div class="ad-coins">${done?coinCards():''}</div>${watchSection()}
-    ${adSection('05 · 已验证的结论','规则都是跑之前定好的；详情在「策略研究」')}<div class="ad-framework"><div><b>已上线</b><p>趋势做多按波动率定仓（11-07）；做空信号等级 A/B/C；资金费率为负时 A 级降为 B 级；资金费率套利提醒（BTC、ETH 年化 ≥10%）。</p></div><div><b>测过、不采用</b><p>1 小时做空、提前进场 / 提前买、币圈动量轮动、持仓量与多空比、恐惧与贪婪指数、Supertrend、MVRV 过滤。</p></div><div><b>等你决定</b><p>策略状态灯对下一笔没有预测力，按灯减半 / 暂停反而少赚。建议灯只作提示，不再影响建议仓位。</p></div></div>
+    ${adSection('05 · 已验证的结论','规则都是跑之前定好的；详情在「策略研究」')}<div class="ad-framework"><div><b>已上线</b><p>4 小时双轨做多（13 个币，金叉 + 红柱买、死叉卖），与日线趋势各用一半资金（11-11）；趋势做多按波动率定仓（11-07）；做空信号等级 A/B/C；资金费率为负时 A 级降为 B 级；资金费率套利提醒（BTC、ETH 年化 ≥10%）。</p></div><div><b>测过、不采用</b><p>1 小时做空、提前进场 / 提前买、币圈动量轮动、持仓量与多空比、恐惧与贪婪指数、Supertrend、MVRV 过滤。</p></div><div><b>等你决定</b><p>策略状态灯对下一笔没有预测力，按灯减半 / 暂停反而少赚。建议灯只作提示，不再影响建议仓位。</p></div></div>
     <div class="ad-buttons"><button class="primary" data-tab="research">打开策略研究 →</button></div>
-    <p class="ad-footer">说明：两套系统——4 小时做空（13 个主流币，日线向下时等 4 小时反弹过热再回落开空）和日线趋势做多（38 个币，突破 20 日新高开多）。历史数字已扣手续费、滑点和资金费，本页面不接收真实账户委托。回测指标和历史评分并不能证明未来盈利。做空研究用的是现货 K 线近似合约。</p>`;
+    <p class="ad-footer">说明：三套系统——4 小时做空（13 个主流币，日线向下时等 4 小时反弹过热再回落开空）、日线趋势做多（38 个币，突破 20 日新高开多）和 4 小时双轨做多（13 个主流币，双轨金叉且热力图有红柱开多、死叉平多）；两套做多各用一半资金。历史数字已扣手续费、滑点和资金费，本页面不接收真实账户委托。回测指标和历史评分并不能证明未来盈利。做空研究用的是现货 K 线近似合约。</p>`;
 }
 function researchPage(){
   const cards=[
@@ -1232,6 +1307,12 @@ function researchPage(){
     <div class="ad-hero" style="margin-top:17px"><div class="ad-hero-head"><span class="ad-pill neutral">策略实验室</span><span class="ad-small">从想法到上线，必须有证据</span></div><h2>不断发现策略，不断验证；不是不断叠加指标</h2><p>优秀策略的关键不是指标数量，而是：明确市场假设、稳定的净期望、合理回撤、跨时期表现、真实可执行性。现阶段你已有两套策略；想测新的想法，直接跟 Claude 说，规则先定好再跑老数据和近 1000 天两段。</p><div class="ad-hero-foot"><div class="ad-mini"><label>现有执行策略</label><b>2 套</b><small>保留原始引擎</small></div><div class="ad-mini"><label>待验证研究方向</label><b>${cards.length} 套</b><small>非已证实盈利模型</small></div><div class="ad-mini"><label>已验证</label><b>12 项</b><small>见下方结论表</small></div><div class="ad-mini"><label>自动搜集能力</label><b>待接入服务端</b><small>HTML 本身无后台爬取</small></div></div></div>
     ${adSection('00 · 已验证结论','每项都是规则先定好、再跑老数据（2018–2024）和近 1000 天两段')}<div class="ad-panel"><div class="ad-table-scroll"><table class="ad-table"><thead><tr><th>日期</th><th>测了什么</th><th>结果</th><th>处理</th></tr></thead><tbody>${[
       ['11-03','1 小时做空 vs 4 小时做空','1 小时两段都亏','不上线'],
+      ['11-07','趋势做多按波动率定仓','同样仓位下回撤更小（近 1000 天 −35% 对 −43%）','已上线'],
+      ['11-07','支撑收复做多','胜率 61% 但止盈太近，近 1000 天 PF 0.83','不上线'],
+      ['11-09','4 小时做空分批止盈','剩下一半 48% 在开仓价被扫，两段都更差','不采用'],
+      ['11-09','日线做多等回踩再进','一半突破不回踩，错过的正是最强的行情','不采用'],
+      ['11-09','主动卖出量暴增预警','原规则 0 次信号；卖出暴增后近两年反而更常反弹','不上线'],
+      ['11-11','双轨曲线 + 热力图','做空、5 分钟～1 小时全部亏；只有 4 小时金叉 + 红柱做多两段都赚（PF 1.59 / 2.18）','已上线（与日线趋势各一半）'],
       ['11-05','做空信号等级 A/B/C','A 级两段都最好，9 年里 8 年 A 好于 B','已上线'],
       ['11-05','「快要开空」提前进','和等确认赚得差不多，但 24% 信号作废、平均亏 3.8%','不建议提前进'],
       ['11-05','「快要突破」提前买','总收益只多一点，多出 3 成平均亏 13%～15% 的单','不建议提前买'],
@@ -1290,7 +1371,7 @@ function detailPage(b) {
       <p class="hist">${ruleHistory(s)}</p></div>`).join("")}</div>`
     : `<div class="empty">${slot?.err ? esc(slot.err) : "正在拉取这个周期的数据…"}</div>`;
   return `${headerHTML("", true)}
-    <div class="ctop big">${priceLine(b)}</div>${chartBox()}${levelsBox(b)}${SYMBOLS.includes(b) ? `${SHORT_SET.includes(b) ? `<div class="box">${swingBox(b)}</div>` : `<p class="intro">这个币只跑日线趋势做多。4 小时做空只在 13 个主流币上做：在其他币上回测效果变弱。</p>`}${trendBox(b)}`
+    <div class="ctop big">${priceLine(b)}</div>${chartBox()}${levelsBox(b)}${SYMBOLS.includes(b) ? `${SHORT_SET.includes(b) ? `<div class="box">${swingBox(b)}</div>` : `<p class="intro">这个币只跑日线趋势做多。4 小时做空和 4 小时双轨只在 13 个主流币上做：做空在其他币上回测变弱，双轨只测过这 13 个币。</p>`}${trendBox(b)}${qxBox(b)}`
       : `<div class="box"><h3>自选观察</h3><p class="why">这个币不在信号池里（没经过回测筛选），只看走势图和关键价位，不发交易信号。</p><button class="link" data-watch-del="${esc(b)}">移出自选</button></div>`}
     <div class="box" style="display:none"><div class="verdict ${v.level}">${v.title}</div><p class="vtext">${v.text}</p>${v.latest ? `<p class="latest">${esc(v.latest)}</p>` : ""}</div>
     <button class="oldbtn" data-old="1">${S.oldOpen ? "收起" : "展开"}旧版参考：5 条趋势规则（不用于下单）</button>${S.oldOpen ? `<h2>5 条趋势规则 × 各周期</h2>${matrix}
@@ -1401,7 +1482,7 @@ function settingsPage() {
     <button class="wide" data-diag="1" ${S.testing ? "disabled" : ""}>${S.testing ? "正在检测…" : "检测所有数据源"}</button>
     <h2>常见问题</h2>
     <div class="prose">
-      <p><b>首页的指令怎么来的？</b>两套系统一起跑。① 4 小时做空（13 个主流币）：日线向下（收盘在 200 日均线下方、20 日均线低于 50 日均线）的币，等 4 小时反弹到过热（RSI 升到 65 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。② 日线趋势做多（38 个币）：日线收盘突破前 20 日最高价、并且在 200 日均线上方就开多；收盘跌破前 10 日最低价（或开仓时 2 倍波动的止损）就平。</p>
+      <p><b>首页的指令怎么来的？</b>三套系统一起跑（2026-11-11 起加了第 ③ 套）。① 4 小时做空（13 个主流币）：日线向下（收盘在 200 日均线下方、20 日均线低于 50 日均线）的币，等 4 小时反弹到过热（RSI 升到 65 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。② 日线趋势做多（38 个币）：日线收盘突破前 20 日最高价、并且在 200 日均线上方就开多；收盘跌破前 10 日最低价（或开仓时 2 倍波动的止损）就平。③ 4 小时双轨做多（13 个主流币）：4 小时红线 EMA5 比黄线 EMA34 高出 0.1 倍波动（金叉）、并且热力图有红柱（50 周期 RSI 高于 50）就开多；死叉就平，只做多。日线趋势和 4 小时双轨两套做多各用一半资金，建议仓位已经按一半算。</p>
       <p><b>为什么做空和做多用不同的方法？</b>用 13 个币、2018 年以来的数据检验：4 小时反弹做空在最近两三年赚钱（近 1000 天平均每次约 +1.1%），但 2018～2024 年平均每次约 -0.7%，全历史大约打平；日线突破做多全历史平均每次约 +14%，但 2025 年以来表现差。日线突破做空全历史是亏的，所以不做。两套系统一个做空、一个做多，通常一个好的时候另一个差，合在一起更稳。</p>
       <p><b>为什么是这 38 个币？</b>规则事先定好、不看回测成绩：币安 30 天日均成交额 500 万美元以上、2023 年 11 月前上市（至少 3 年历史）、有 USDT 永续合约，排除稳定币和黄金。回测里日线趋势做多在新加的 25 个币上同样有效（近 1000 天赚亏比 2.25），币越多越分散，近 1000 天年化从约 4% 提高到约 29%；4 小时做空在新币上明显变弱（赚亏比 1.16，原来 13 个币是 1.57），所以做空只留在原来 13 个币。其他币可以加到「自选观察」看走势，但不发信号。</p>
       <p><b>策略状态灯是什么？</b>看每套系统最近 30 笔模拟交易：赚的钱是亏的钱 1.1 倍以上为绿灯，正常开仓；0.8～1.1 倍黄灯，建议仓位自动减半；低于 0.8 倍红灯，暂停新开仓，只看不做，已有的单照常按规则离场。系统会继续模拟，表现恢复后自动转回绿灯。灯的变化会推送。</p>
@@ -1519,6 +1600,59 @@ const VOL_TARGET = 0.5;
 function sizeVol(vol, capPct = 40, factor = 1) {
   if (!(vol > 0)) return null;
   return { pct: Math.min(VOL_TARGET / (vol * 100) * 100, capPct) * factor, vol };
+}
+// 两套做多各用一半资金（2026-11-11 回测：日线趋势 + 4 小时双轨各一半，13 个币老数据夏普 1.60，好于单独任何一套；回撤更小）
+const LONG_SPLIT = 0.5;
+const mmFmt = v => v > 0 && v < 0.1 ? v.toFixed(2) : v.toFixed(1);   // 热力红柱显示（很小的红柱别显示成 0.0）
+// 4 小时双轨 + 热力做多（2026-11-11 回测，13 个币，2018-06 起，已扣手续费和滑点）：
+//   双轨 = 红 EMA5 / 黄 EMA34，差值超过 0.1×ATR14 才算金叉 / 死叉，同方向上一次交叉要隔 20 根以上才算（同使用者的 QX_STYLE_MAP_V4_2）
+//   热力红柱 MM = 1.5×(RSI50−50)，限 0～20（同 AWR_LITE）；热度 HOT = 0.7×(RSI40−30)
+//   金叉且有红柱（MM>0）→ 下一根开盘买；死叉 → 下一根开盘卖；只做多（做空在所有周期都亏）
+//   按波动率定仓、最多 5 个币：近 1000 天 619 笔 PF 1.59、年化 52%、回撤 −43%；2018-06～2024-02 1070 笔 PF 2.18、年化 67%、回撤 −51%
+function qxCalc(k) {
+  const FEE = 0.001, SLIP = 0.0005, H4 = 14400000;
+  const { o, h, l, c, ts } = k, n = c.length;
+  if (n < 120) return null;
+  const ema = (x, p) => { const a = 2 / (p + 1), r = new Float64Array(x.length); r[0] = x[0]; for (let i = 1; i < x.length; i++) r[i] = a * x[i] + (1 - a) * r[i - 1]; return r; };
+  const sma1 = (x, p) => { const r = new Float64Array(x.length); r[0] = x[0]; for (let i = 1; i < x.length; i++) r[i] = (x[i] + (p - 1) * r[i - 1]) / p; return r; };
+  const l1 = ema(c, 5), l2 = ema(c, 34), d = new Float64Array(n), buf = new Float64Array(n).fill(NaN);
+  const tr = new Float64Array(n), up = new Float64Array(n), rng = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const pc = i ? c[i - 1] : c[0]; d[i] = l1[i] - l2[i];
+    tr[i] = Math.max(h[i] - l[i], Math.abs(h[i] - pc), Math.abs(l[i] - pc)); up[i] = Math.max(c[i] - pc, 0); rng[i] = Math.abs(c[i] - pc);
+  }
+  let s14 = 0; for (let i = 0; i < n; i++) { s14 += tr[i]; if (i >= 14) s14 -= tr[i - 14]; if (i >= 13) buf[i] = s14 / 14 * 0.10; }
+  const u50 = sma1(up, 50), r50 = sma1(rng, 50), u40 = sma1(up, 40), r40 = sma1(rng, 40);
+  const clip = x => Math.min(20, Math.max(0, x));
+  const mmAt = i => clip(1.5 * ((r50[i] > 0 ? u50[i] / r50[i] * 100 : 50) - 50)), hotAt = i => clip(0.7 * ((r40[i] > 0 ? u40[i] / r40[i] * 100 : 50) - 30));
+  const sb = new Uint8Array(n), ss = new Uint8Array(n), st = new Int8Array(n); let lb = -1e9, ls = -1e9, s = 0;
+  for (let i = 1; i < n; i++) {
+    const rb = d[i] > buf[i] && d[i - 1] <= buf[i - 1], rs = -buf[i] > d[i] && -buf[i - 1] <= d[i - 1];
+    if (rb) { sb[i] = i - lb > 21 ? 1 : 0; lb = i; }
+    if (rs) { ss[i] = i - ls > 21 ? 1 : 0; ls = i; }
+    if (sb[i]) s = 1; else if (ss[i]) s = -1; st[i] = s;
+  }
+  const trades = [], ev = []; let pos = 0, ent = 0, eI = 0, sigP = 0, exiting = false, fresh = null;
+  for (let i = 1; i < n; i++) {
+    if (pos && ss[i]) {
+      ev.push({ t: ts[i] + H4, act: "平多", price: c[i] });
+      if (i + 1 < n) { const x = o[i + 1] * (1 - SLIP); trades.push({ side: 1, t0: ts[eI], t1: ts[i + 1], p0: ent, p1: x, r: x / ent - 1 - 2 * FEE, bars: i + 1 - eI, why: "dead" }); pos = 0; }
+      else exiting = true;
+    }
+    if (!pos && sb[i]) {
+      const mm = mmAt(i);
+      if (mm > 0) {
+        ev.push({ t: ts[i] + H4, act: "开多", price: c[i], mm, hot: hotAt(i) });
+        if (i + 1 < n) { pos = 1; ent = o[i + 1] * (1 + SLIP); eI = i + 1; sigP = c[i]; }
+        else fresh = { price: c[i], mm };
+      } else ev.push({ t: ts[i] + H4, act: "金叉无红柱", price: c[i], mm, hot: hotAt(i) });
+    }
+  }
+  const L = n - 1; let action = "观望", open = null;
+  if (fresh) { action = "开多"; open = { t0: ts[L] + H4, p0: c[L], sig: c[L], bars: 0, fresh: true }; }
+  else if (pos) { action = exiting ? "平多" : "持多中"; open = { t0: ts[eI], p0: ent, sig: sigP, bars: n - eI }; }
+  const phase = action !== "观望" ? null : st[L] > 0 ? (d[L] > 0 ? "bullwait" : "bullweak") : st[L] < 0 ? "bear" : "none";
+  return { action, open, exiting, trades, ev, phase, state: st[L], mm: mmAt(L), hot: hotAt(L), l1: l1[L], l2: l2[L], price: c[L], barTs: ts[L] };
 }
 function srLevels(k, look = 180, w = 3) {
   const n = k.c.length, { h, l, c } = k, from = Math.max(w + 1, n - look);
