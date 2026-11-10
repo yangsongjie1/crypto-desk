@@ -26,7 +26,8 @@
   "ETH|follow|1793908800000",
   "BTC|swing|1794168000000|平空",
   "ETH|swing|1794168000000|平空",
-  "AVAX|swing|1794240000000|开空"
+  "AVAX|swing|1794240000000|开空",
+  "AVAX|follow|1794240000000"
  ],
  "swing": {
   "BTC": {
@@ -85,7 +86,8 @@
  "v3": 1,
  "health": {
   "short": "yellow",
-  "trend": "green"
+  "trend": "green",
+  "qx": "green"
  },
  "trendInit": 1,
  "v4": 1,
@@ -133,5 +135,7 @@
  "carry": {
   "BTC": false,
   "ETH": false
- }
+ },
+ "qxInit": 1,
+ "v6": 1
 }
