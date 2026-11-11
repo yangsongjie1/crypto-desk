@@ -348,14 +348,17 @@ function trendCalc(k, longOnly = true) {
   return { action, open, exiting, trades, ev, price, barTs: ts[L], e200: e200[L], atr: atr[L], vol20,
     up: hh(n, 20), dn: ll(n, 20), side: price > e200[L] ? 1 : -1 };
 }
+// 策略状态灯（2026-11-11 起只作提示，不再影响仓位）：11-05 回测，灯对下一笔没有预测力，按灯减半 / 暂停反而少赚
+// （趋势做多近 1000 天 +2866% → +485%）；11-11 组合回测里按"宽度"门控多头同样更差。factor 固定为 1。
+const HEALTH_SIZING = false;
 function healthOf(trades, N = 30) {
   const t = trades.slice().sort((x, y) => x.t1 - y.t1).slice(-N);
   if (t.length < 15) return { level: "gray", word: "样本不足", factor: 1, n: t.length };
   let gw = 0, gl = 0, s = 0; for (const x of t) { s += x.r; if (x.r > 0) gw += x.r; else gl -= x.r; }
   const pf = gl > 0 ? gw / gl : 9, avg = s / t.length, win = t.filter(x => x.r > 0).length / t.length;
   const level = pf >= 1.1 ? "green" : pf >= 0.8 ? "yellow" : "red";
-  return { level, pf, avg, win, n: t.length, factor: { green: 1, yellow: 0.5, red: 0 }[level],
-    word: { green: "正常", yellow: "变弱：仓位减半", red: "失灵：暂停新开仓" }[level] };
+  return { level, pf, avg, win, n: t.length, factor: HEALTH_SIZING ? { green: 1, yellow: 0.5, red: 0 }[level] : 1,
+    word: HEALTH_SIZING ? { green: "正常", yellow: "变弱：仓位减半", red: "失灵：暂停新开仓" }[level] : { green: "正常", yellow: "最近偏弱（仅提示）", red: "最近很差（仅提示）" }[level] };
 }
 function rsiTarget(c, level, n = 14) {
   const a = 1 / n, L = c.length; let up = 0, dn = 0;
@@ -385,8 +388,9 @@ const mmFmt = v => v > 0 && v < 0.1 ? v.toFixed(2) : v.toFixed(1);   // 热力�
 // 4 小时双轨 + 热力做多（2026-11-11 回测，13 个币，2018-06 起，已扣手续费和滑点）：
 //   双轨 = 红 EMA5 / 黄 EMA34，差值超过 0.1×ATR14 才算金叉 / 死叉，同方向上一次交叉要隔 20 根以上才算（同使用者的 QX_STYLE_MAP_V4_2）
 //   热力红柱 MM = 1.5×(RSI50−50)，限 0～20（同 AWR_LITE）；热度 HOT = 0.7×(RSI40−30)
-//   金叉且有红柱（MM>0）→ 下一根开盘买；死叉 → 下一根开盘卖；只做多（做空在所有周期都亏）
-//   按波动率定仓、最多 5 个币：近 1000 天 619 笔 PF 1.59、年化 52%、回撤 −43%；2018-06～2024-02 1070 笔 PF 2.18、年化 67%、回撤 −51%
+//   金叉（含冷却）且有红柱（MM>0）→ 下一根开盘买；任何一次死叉（不看冷却）→ 下一根开盘卖；只做多（做空在所有周期都亏）
+//   卖出不看冷却（11-11 回测，两段都更好，单笔最大亏损 −41% → −19%）。按波动率定仓、最多 5 个币：
+//   近 1000 天 701 笔 PF 1.58、年化 60%、回撤 −34%；2018-06～2024-02 1187 笔 PF 2.08、年化 68%、回撤 −38%
 function qxCalc(k) {
   const FEE = 0.001, SLIP = 0.0005, H4 = 14400000;
   const { o, h, l, c, ts } = k, n = c.length;
@@ -403,16 +407,16 @@ function qxCalc(k) {
   const u50 = sma1(up, 50), r50 = sma1(rng, 50), u40 = sma1(up, 40), r40 = sma1(rng, 40);
   const clip = x => Math.min(20, Math.max(0, x));
   const mmAt = i => clip(1.5 * ((r50[i] > 0 ? u50[i] / r50[i] * 100 : 50) - 50)), hotAt = i => clip(0.7 * ((r40[i] > 0 ? u40[i] / r40[i] * 100 : 50) - 30));
-  const sb = new Uint8Array(n), ss = new Uint8Array(n), st = new Int8Array(n); let lb = -1e9, ls = -1e9, s = 0;
+  const sb = new Uint8Array(n), ss = new Uint8Array(n), sr = new Uint8Array(n), st = new Int8Array(n); let lb = -1e9, ls = -1e9, s = 0;
   for (let i = 1; i < n; i++) {
     const rb = d[i] > buf[i] && d[i - 1] <= buf[i - 1], rs = -buf[i] > d[i] && -buf[i - 1] <= d[i - 1];
     if (rb) { sb[i] = i - lb > 21 ? 1 : 0; lb = i; }
-    if (rs) { ss[i] = i - ls > 21 ? 1 : 0; ls = i; }
+    if (rs) { ss[i] = i - ls > 21 ? 1 : 0; ls = i; sr[i] = 1; }
     if (sb[i]) s = 1; else if (ss[i]) s = -1; st[i] = s;
   }
   const trades = [], ev = []; let pos = 0, ent = 0, eI = 0, sigP = 0, exiting = false, fresh = null;
   for (let i = 1; i < n; i++) {
-    if (pos && ss[i]) {
+    if (pos && sr[i]) {   // 卖出：任何一次死叉都卖，不看冷却
       ev.push({ t: ts[i] + H4, act: "平多", price: c[i] });
       if (i + 1 < n) { const x = o[i + 1] * (1 - SLIP); trades.push({ side: 1, t0: ts[eI], t1: ts[i + 1], p0: ent, p1: x, r: x / ent - 1 - 2 * FEE, bars: i + 1 - eI, why: "dead" }); pos = 0; }
       else exiting = true;
@@ -446,6 +450,14 @@ async function push(title, body, important) {
   const dn = d => d > 0 ? "向上（做空系统不做）" : d < 0 ? "向下（找做空机会）" : "不明（做空系统不做）";
   const SYSN = { short: "4小时做空", trend: "日线趋势做多", qx: "4小时双轨做多" };
   const pctS = x => (x >= 0 ? "+" : "") + (x * 100).toFixed(1) + "%";
+  // 做空只做 A 级（2026-11-11 组合回测，13 个币 2018-06 起，4 小时盯市）：
+  //   A 级 = 止损距离 ≥2% 且日线转空 ≤30 天（资金费率 ≤0 的 A 级按 B 级算，同 11-06 规则）
+  //   只做 A 级的做空腿三段都是正的：2018-06～2020 年化 +4.6%、2021～2023 +0.8%、2024～今 +5.6%，回撤 −5%～−15%
+  //   A+B 都做（原规则）：+1.4% / −13.4% / −4.1%，2021～2023 把整个组合回撤从 −29% 拖到 −49%
+  //   整个组合（唐奇安½ + 双轨½）：只做 A 级 + 空头合计 ≤40% 后，三段年化 58 / 48 / 44%，回撤 −18 / −28 / −15%；原规则 55 / 27 / 30%，回撤 −18 / −49 / −21%
+  // 所以：B、C 级不再推送开空（网页上仍显示，标为"观察，不开"）；空头合计名义不超过本金 40%（原来 3 笔叠起来峰值到过 115%）
+  const SHORT_CAP = 40;
+  const isAGrade = (dist, age, f) => dist >= 0.02 && age <= 30 && !(f && f.now <= 0);
   // 1) 先算好每个币的两套系统
   const R = {};
   for (const b of SYMBOLS) {
@@ -475,13 +487,29 @@ async function push(title, body, important) {
     const h = H[sys], prevL = state.health[sys];
     if (!healthInit && !first && prevL && prevL !== h.level && h.level !== "gray")
       events.push({ coin: null, kind: "health", sys, level: h.level, important: h.level !== "green", title: `${SYSN[sys]} 策略状态：${h.word}`,
-        body: `最近 ${h.n} 笔模拟交易：胜率 ${Math.round(h.win * 100)}%，平均每笔 ${pctS(h.avg)}，赚亏比 ${h.pf.toFixed(2)}。${h.level === "yellow" ? "之后的建议仓位自动减半。" : h.level === "red" ? "暂停新开仓，已有的单照常按规则离场。" : "恢复正常仓位。"}` });
+        body: `最近 ${h.n} 笔模拟交易：胜率 ${Math.round(h.win * 100)}%，平均每笔 ${pctS(h.avg)}，赚亏比 ${h.pf.toFixed(2)}。${HEALTH_SIZING ? (h.level === "yellow" ? "之后的建议仓位自动减半。" : h.level === "red" ? "暂停新开仓，已有的单照常按规则离场。" : "恢复正常仓位。") : "只是提示，建议仓位不变（回测：按灯减仓反而少赚）。"}` });
     state.health[sys] = h.level;
   }
-  const sizeLine = (sys, entry, stop, lev, vol) => {
+  // 模型里正在持有的 A 级空单各占本金多少（按开仓时的止损距离算，和当时推送的建议仓位一致）；合计不能超过 SHORT_CAP
+  const openShorts = {};
+  for (const b of SHORT_SET) {
+    const v = R[b] && R[b].v;
+    if (v && v.action === "持空中" && isAGrade(v.sigDist, v.age, R[b].f)) { const z = sizePct(1, 1 + v.sigDist, 1, SHORT_CAP); if (z) openShorts[b] = z.pct; }
+  }
+  const shortUsed = except => Object.entries(openShorts).filter(([c]) => c !== except).reduce((s, [, p]) => s + p, 0);
+  const sizeLine = (sys, entry, stop, lev, vol, coin) => {
     const h = H[sys], side = sys === "short" ? -1 : 1, ok = side * (entry - stop) > 0;
     if (!ok && sys !== "qx") return "仓位：现价已越过止损线，不要开仓";
     if (h.factor === 0) return `仓位：策略状态红灯，暂停新开仓，只看不做`;
+    if (sys === "short") {
+      // 推送不知道你实际拿着哪几笔，所以写清规则 + 模型里还在持有的空单；网页「可以开仓」会按你标记的持仓精确算
+      const z = sizePct(entry, stop, 1, SHORT_CAP, h.factor), others = Object.entries(openShorts).filter(([c]) => c !== coin), used = shortUsed(coin), room = Math.max(0, SHORT_CAP - used);
+      const capTxt = !others.length ? `空头合计上限 ${SHORT_CAP}%`
+        : room < 5 ? `空头合计上限 ${SHORT_CAP}%：模型里还持有 ${others.map(([c, p]) => `${c} ${p.toFixed(0)}%`).join("、")}，如果你也都拿着，这笔不开`
+        : `空头合计上限 ${SHORT_CAP}%：模型里还持有 ${others.map(([c, p]) => `${c} ${p.toFixed(0)}%`).join("、")}，如果你也拿着，这笔最多 ${Math.min(z.pct, room).toFixed(0)}%`;
+      return `仓位：本金的 ${z.pct.toFixed(0)}%（每笔最多亏 1%；${capTxt}），${lev}` +
+        (z.tight ? `\n⚠ 止损只离 ${(z.dist * 100).toFixed(1)}%，历史上这类单胜率仅 18%，建议跳过或减半` : "");
+    }
     if (sys === "trend" || sys === "qx") {
       // 2026-11-11：日线趋势、4 小时双轨两套做多各用一半资金
       const v = sizeVol(vol, 40, h.factor * LONG_SPLIT);
@@ -489,8 +517,7 @@ async function push(title, body, important) {
         return `仓位：本金的 ${v.pct.toFixed(0)}%（按波动率：0.5% ÷ 20日波动 ${(vol * 100).toFixed(1)}%，再 × 一半资金），${sys === "qx" ? (ok ? `跌到黄线约亏本金 ${loss.toFixed(1)}%` : "现价已在黄线下方，死叉随时可能出现") : `打到止损约亏本金 ${loss.toFixed(1)}%`}，${lev}；日线趋势、4小时双轨两套做多各用一半资金${h.factor < 1 ? `；策略${h.word}` : ""}`; }
     }
     const z = sizePct(entry, stop, 1, 40, h.factor);
-    return `仓位：本金的 ${z.pct.toFixed(0)}%（每笔最多亏 1%），${lev}${h.factor < 1 ? `；策略${h.word}` : ""}` +
-      (sys === "short" && z.tight ? `\n⚠ 止损只离 ${(z.dist * 100).toFixed(1)}%，历史上这类单胜率仅 18%，建议跳过或减半` : "");
+    return `仓位：本金的 ${z.pct.toFixed(0)}%（每笔最多亏 1%），${lev}${h.factor < 1 ? `；策略${h.word}` : ""}`;
   };
   // 信号等级（2026-11-05 回测，和网页同一套）：止损距离 ≥2% + 日线转空 ≤30 天
   // 2026-11-06 加：资金费率 ≤0（空头在付钱）时 A 级降为 B 级。回测里这种 A 级只有 B 级的水平
@@ -507,10 +534,10 @@ async function push(title, body, important) {
   };
   // 2026-11-09 推送格式：进场 / 止损 / 止盈参考 三行（只改文字，信号和仓位规则不变；止盈只写规则，不写目标价）
   const entryLine = (p, sigTxt, extra) => `进场：≈ ${fmt(p)}（下一根开盘参考价，按现价；${sigTxt}${extra || ""}）`;
-  const shortPlan = (v, p) => [
+  const shortPlan = (v, p, coin) => [
     `止损：${fmt(v.stop)}（${pctS(v.stop / p - 1)}）= 4小时 EMA200，4小时收盘站上就平；止损线跟着均线移动`,
     v.rsi != null && v.rsi < 35 ? `止盈参考：4小时 RSI 已在 35 以下，留意平空提示` : `止盈参考：4小时收盘 RSI 跌破 35 时平仓（看平空推送，不设目标价）`,
-    sizeLine("short", p, v.stop, "杠杆≤2倍"),
+    sizeLine("short", p, v.stop, "杠杆≤2倍", null, coin),
   ].join("\n");
   const trendInit = !state.trendInit; state.trendInit = 1;
   const qxInit = !state.qxInit; state.qxInit = 1;   // 第一次跑 4 小时双轨：只记下历史信号，不补推
@@ -536,24 +563,44 @@ async function push(title, body, important) {
         const lateH = (NOW - close) / 3600000, late = lateH >= 1.5 ? `（延迟 ${Math.round(lateH)} 小时）` : "";
         if (e.act === "开空") {
           if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
+          if (!isAGrade(e.dist, e.age, f)) { sent.add(`${b}|swing|${e.t}|skip`); console.log(`  ${b} 开空信号是 ${e.dist < 0.02 ? "C" : "B"} 级，不推送（只做 A 级）`); return; }
           const move = 1 - v.price / e.price;
-          const body = `${entryLine(v.price, `信号收盘 ${fmt(e.price)}`, late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : "")}\n${shortPlan(v, v.price)}\n${gradeLine(e.dist, e.age, f, e.rsi)}`;
+          const body = `${entryLine(v.price, `信号收盘 ${fmt(e.price)}`, late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : "")}\n${shortPlan(v, v.price, b)}\n${gradeLine(e.dist, e.age, f, e.rsi)}`;
           events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}${e.rsi != null && e.rsi < 50 ? "（追跌，建议等反弹）" : ""}`, body });
           v.justOpened = true;
         } else {
           const opened = [...v.ev.slice(0, idx)].reverse().find(x => x.act === "开空");
+          if (opened && sent.has(`${b}|swing|${opened.t}|skip`)) return; // 这笔是 B/C 级、没推过开空：也不推平空
           if (opened && NOW - (opened.t + H4) < 86400000 && !sentBefore.has(`${b}|swing|${opened.t}|开空`)) return; // 开空也没提醒过：用户没持仓，不推平空
           const gain = opened ? 1 - e.price / opened.price - 2 * 0.001 : null;
           events.push({ coin: b, kind: "close", price: v.price, sigPrice: e.price, sig: close, important: true, title: `${b} 平空 · 4小时做空${late}`,
             body: `离场原因：${e.why}\n离场价 ${fmt(e.price)}，现价 ${fmt(v.price)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}` });
         }
       });
-      if (v.action === "持空中" && v.sinceBars >= 6 && v.sinceBars < 12 && !v.justOpened) {
-        const key = `${b}|follow|${v.barTs - v.sinceBars * 14400000}`;
+      // 持仓守护提醒（2026-11-11）：空单按 4 小时收盘反向涨到 3.1% / 5% 各提醒一次，只提示、不叫操作
+      // 依据：近 1000 天最后赚钱的空单，中途反向涨幅中位数 1.7%，1/4 超过 3.1%，1/10 超过 5%（11-06 统计）；
+      //       中途减仓再加回回测更差（11-11：近 1000 天平均每笔 +1.9% → +1.2%）
+      // 持仓中的空单是不是推过开空的 A 级单（B/C 级没推过开空，跟进、守护也都不推）
+      const t0g = v.barTs - v.sinceBars * 14400000;
+      const heldA = v.action === "持空中" && !sent.has(`${b}|swing|${t0g}|skip`) && isAGrade(v.sigDist, v.age, f);
+      if (heldA && v.entry > 0 && v.stop > v.price && !v.justOpened) {
+        const adv = v.price / v.entry - 1, toStop = v.stop / v.price - 1;
+        const lvl = adv >= 0.05 ? 2 : adv >= 0.031 ? 1 : 0;
+        for (let g = 1; g <= lvl; g++) {
+          const key = `${b}|guard|${t0g}|${g}`; if (sent.has(key)) continue; sent.add(key);
+          if (first || g < lvl) continue;   // 直接跳到第二档时，第一档不再补发
+          events.push({ coin: b, kind: "guard", price: v.price, important: g === 2, title: `${b} 空单反向涨 ${(adv * 100).toFixed(1)}% · 持仓守护`,
+            body: g === 1
+              ? `4小时收盘 ${fmt(v.price)}，比开空价 ${fmt(v.entry)} 反向涨了 ${(adv * 100).toFixed(1)}%。\n历史上最后赚钱的空单，约 1/4 中途也反向涨过 3% 以上，这还算正常，按规则拿着。\n离止损还有 ${(toStop * 100).toFixed(1)}%：4小时收盘站上 ${fmt(v.stop)} 才平，盘中冲上去不算。\n不建议现在减仓再加回：回测里这样做，近 1000 天平均每笔从 +1.9% 降到 +1.2%。`
+              : `4小时收盘 ${fmt(v.price)}，比开空价 ${fmt(v.entry)} 反向涨了 ${(adv * 100).toFixed(1)}%。\n只有约 1/10 的赚钱空单涨到这么多，开始少见了。\n盯一下 4小时收盘：站上 ${fmt(v.stop)}（还差 ${(toStop * 100).toFixed(1)}%）就按规则平；没站上就继续拿着，不要提前乱动。` });
+        }
+      }
+      if (heldA && v.sinceBars >= 6 && v.sinceBars < 12 && !v.justOpened) {
+        const key = `${b}|follow|${t0g}`;
         if (!sent.has(key)) { sent.add(key);
           if (!first) { const fell = 1 - v.price / v.entry;
             events.push({ coin: b, kind: "follow", price: v.price, stop: v.stop, tp: v.tp, important: true, title: `${b} 跟进提示：开空已满 1 天`,
-              body: `${entryLine(v.price, `${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}`, `，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%`)}\n${shortPlan(v, v.price)}\n${gradeLine(v.sigDist, v.age, f, v.sigRsi)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
+              body: `${entryLine(v.price, `${(v.sinceBars * 4 / 24).toFixed(1)} 天前信号价 ${fmt(v.entry)}`, `，${fell >= 0 ? "已跌" : "已涨"} ${Math.abs(fell * 100).toFixed(1)}%`)}\n${shortPlan(v, v.price, b)}\n${gradeLine(v.sigDist, v.age, f, v.sigRsi)}\n历史上晚 1～2 天跟进：胜率 56%，平均每次 +1.1%` }); } }
       }
     }
     // 4 小时双轨做多（2026-11-11 起）：查最近 24 小时的信号
@@ -569,7 +616,7 @@ async function push(title, body, important) {
         if (q.ev.slice(idx + 1).some(x => x.act === "平多")) return;
         const moved = p / e.price - 1;
         events.push({ coin: b, kind: "qopen", price: p, sigPrice: e.price, sig: e.t, important: true, title: `${b} 开多 · 4小时双轨${late}`,
-          body: `${entryLine(p, `4小时收盘 ${fmt(e.price)} 双轨金叉，热力红柱 ${mmFmt(e.mm)}`, late ? `，${moved >= 0 ? "已涨" : "已跌"} ${Math.abs(moved * 100).toFixed(1)}%，1 天内仍可跟进` : "")}\n止损：不设固定价；4小时双轨死叉就卖（红线跌破黄线超过 0.1 倍波动）。黄线现在 ${fmt(q.l2)}（${pctS(q.l2 / p - 1)}），收盘跌到黄线附近要留意\n止盈参考：不设目标价，等死叉才卖，让利润跑\n${sizeLine("qx", p, q.l2, "现货或 1 倍", R[b].t ? R[b].t.vol20 : null)}\n历史（13 个币，2018-06 起）：胜率约 38%，平均每笔 +3.2%，靠少数大波段赚钱；只做多，死叉不要反手做空` });
+          body: `${entryLine(p, `4小时收盘 ${fmt(e.price)} 双轨金叉，热力红柱 ${mmFmt(e.mm)}`, late ? `，${moved >= 0 ? "已涨" : "已跌"} ${Math.abs(moved * 100).toFixed(1)}%，1 天内仍可跟进` : "")}\n止损：不设固定价；4小时双轨死叉就卖（红线跌破黄线超过 0.1 倍波动，每次死叉都卖，不看冷却）。黄线现在 ${fmt(q.l2)}（${pctS(q.l2 / p - 1)}），收盘跌到黄线附近要留意\n止盈参考：不设目标价，等死叉才卖，让利润跑\n${sizeLine("qx", p, q.l2, "现货或 1 倍", R[b].t ? R[b].t.vol20 : null)}\n历史（13 个币，2018-06 起）：胜率约 3 成，平均每笔 +2.5%，亏的单死叉很快就卖，靠少数大波段赚钱；只做多，死叉不要反手做空` });
       } else {
         const opened = [...q.ev.slice(0, idx)].reverse().find(x => x.act === "开多");
         if (opened && !sentBefore.has(`${b}|qx|${opened.t}|开多`) && NOW3 - opened.t < 86400000) return;
@@ -622,8 +669,10 @@ async function push(title, body, important) {
   if (!first && state.v4 && !state.v5) await push("盯盘已升级：日线趋势做多扩大到 38 个币",
     `新加 25 个主流币（只跑日线趋势做多，4小时做空仍是原来 13 个币）。\n策略状态：4小时做空 ${H.short.word}；日线趋势做多 ${H.trend.word}。`, false);
   if (!first && state.v5 && !state.v6) await push("盯盘已升级：新增 4 小时双轨做多",
-    `第三套系统：13 个主流币上，4小时双轨金叉（红线 EMA5 上穿黄线 EMA34）且热力图有红柱就买，死叉就卖；只做多。\n日线趋势、4小时双轨两套做多各用一半资金，建议仓位已按一半算；4小时做空不变。\n策略状态：日线趋势做多 ${H.trend.word}；4小时双轨做多 ${H.qx.word}。`, false);
-  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.trendCoins = SYMBOLS;
+    `第三套系统：13 个主流币上，4小时双轨金叉（红线 EMA5 上穿黄线 EMA34）且热力图有红柱就买，死叉就卖（每次死叉都卖）；只做多。\n空单中途反向涨到 3% / 5% 会各提醒一次「持仓守护」，只提示、不叫你操作。\n日线趋势、4小时双轨两套做多各用一半资金，建议仓位已按一半算；4小时做空不变。\n策略状态：日线趋势做多 ${H.trend.word}；4小时双轨做多 ${H.qx.word}。`, false);
+  if (!first && state.v6 && !state.v7) await push("盯盘已调整：做空只做 A 级 · 空头合计封顶 40%",
+    `1）做空只推 A 级（止损 ≥2%、日线转空 ≤30 天、资金费率不为负）。B、C 级不再推送开空，网页上仍能看到、标为"观察，不开"。回测：A 级做空 2018 年起三段都赚；B 级是拖后腿的那部分。\n2）空单合计名义不超过本金 40%：开空推送里会列出模型里还持有的空单各占多少，网页「可以开仓」按你标记的持仓精确算，到上限就写"这笔不开"。\n3）策略状态灯只作提示，不再自动减半 / 暂停（回测：按灯减仓反而少赚）。\n做多两套不变。`, false);
+  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.trendCoins = SYMBOLS;
   if (events.length > 6) await push(`${events.length} 条新提醒`, events.map(e => e.title).join("\n"), true);
   else for (const e of events) await push(e.title, e.body, e.important);
   if (!KEY) { console.log("没有设置 BARK_KEY：这次只是试运行，不保存状态。"); return; }
