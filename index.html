@@ -303,7 +303,16 @@ nav button[aria-current="page"] {color:#e5f2ff;background:#1c324c;box-shadow:ins
 @media(max-width:1150px){body{padding-left:210px}nav{width:193px}.ad-columns{grid-template-columns:1fr}.ad-kpis{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){body{padding:0 11px 90px}.wrap{padding:0 2px}nav{top:auto;right:0;bottom:0;width:100%;height:auto;flex-direction:row;padding:5px 4px env(safe-area-inset-bottom,5px);border-top:1px solid var(--line);border-right:0;gap:0}nav button{flex:1;display:block;text-align:center;padding:9px 2px;font-size:16px}nav button span{display:block;font-size:10px;margin-top:2px}nav button[aria-current="page"]{box-shadow:inset 0 2px 0 var(--accent)}.navbrand,.navfoot{display:none}header{padding:19px 3px 15px}header h1{font-size:21px}.ad-hero{padding:18px}.ad-hero h2{font-size:20px}.ad-hero-foot{display:grid;grid-template-columns:repeat(2,1fr)}.ad-mini{min-width:0}.ad-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ad-kpi{padding:13px}.ad-kpi strong{font-size:22px}.ad-queue,.ad-strats,.ad-research-grid,.ad-framework,.ad-compare{grid-template-columns:1fr}.ad-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.ad-panel{padding:12px}.ad-table{min-width:550px}.ad-topline{align-items:flex-start}}
 
-.lab-card{border-left:4px solid #999;margin-bottom:12px}.lab-short{border-left-color:#c62828}.lab-long{border-left-color:#2e7d32}.lab-close{border-left-color:#999}.lab-dim{opacity:.75}.lab-table td{vertical-align:top}.linkish{background:none;border:0;padding:0;color:inherit;cursor:pointer;font:inherit}
+.linkish{background:none;border:0;padding:0;color:inherit;cursor:pointer;font:inherit}
+.lab-hero{padding:18px}.lab-big{font-size:22px;font-weight:700;line-height:1.35;margin-bottom:14px}
+.lab-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:8px}.lab-facts>div{background:var(--sunk);border-radius:10px;padding:10px 12px}.lab-facts span{display:block;font-size:12px;color:var(--muted)}.lab-facts b{display:block;font-size:16px;margin:2px 0}.lab-facts i{font-style:normal;font-size:12px;color:var(--muted);line-height:1.5}
+.lab-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-bottom:18px}
+.lab-coin{background:var(--card,rgba(255,255,255,.03));border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;padding:12px 14px}
+.lab-row1{display:flex;gap:12px;align-items:baseline}.lab-sym{font-size:18px;font-weight:700}.lab-row1 .num:last-child{margin-left:auto}
+.lab-verdict{font-size:16px;font-weight:700;margin:6px 0 8px}
+.lab-go{border-left-color:var(--down)}.lab-go .lab-verdict{color:var(--down)}.lab-soon{border-left-color:#C98A0C}.lab-soon .lab-verdict{color:#C98A0C}.lab-hold{border-left-color:var(--accent)}.lab-close{border-left-color:var(--up)}.lab-wait .lab-verdict,.lab-no .lab-verdict{color:var(--muted)}.lab-no{opacity:.8}
+.lab-gap{font-size:13px;line-height:1.7}.lab-gap span{display:inline-block;min-width:56px;color:var(--muted)}.lab-hist{font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.5}
+.lab-cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.lab-cmpc{background:var(--sunk);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.8}.lab-cmpc b{font-size:15px}.lab-cmpc span:first-child{display:inline-block;min-width:76px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -918,7 +927,7 @@ function qxsCalc(k4, k1) {
     age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI], l1: e5[L], l2: e34[L], touched: touchedAt(L), hot7: hotAt(L), gate: !!gateOk[L] };
 }
 
-// ===== 双轨实验线 tab（2026-11-14）：双轨做多（已上线）+ 双轨做空（实验），和现行 4 小时反弹做空并排比 =====
+// ===== 双轨实验线 tab（2026-11-14）：一眼看出现在做不做、做哪个 =====
 const QXS = {};
 function qxsFor(b) {
   if (!SHORT_SET.includes(b)) return null;
@@ -928,81 +937,103 @@ function qxsFor(b) {
   if (QXS[b]?.key !== key) { const v = qxsCalc(c4.k, c1.k); v.b = b; QXS[b] = { key, v }; }
   return QXS[b].v;
 }
-const QXS_PRIOR = { r: [66, 0.64, 1.30], o: [66, 0.46, 1.16], rsi_r: [61, 2.16, 2.14], rsi_o: [64, 1.74, 1.65] };
+const QXS_PRIOR = { r: [66, 0.64, 1.30], o: [66, 0.46, 1.16] };
 function qxsGrade(v) {
   const dist = v.action === "持空中" ? v.sigDist : v.stop / v.price - 1, f = S.fund[v.b];
   const key = dist < 0.02 ? "C" : v.age <= 30 ? "A" : "B";
-  if (key === "A" && f && f.now <= 0) return { key: "B", k: "B 级（不开）", c: "gb", dist, age: v.age, f, why: "资金费率为负（空头在付钱）。双轨做空的优势几乎全靠资金费率 >0 这一条：去掉它，2018–2024 年平均每笔只剩 +0.03%。不开。" };
-  return { key, k: key === "A" ? "A 级（可以做）" : key === "B" ? "B 级（不开）" : "C 级（不开）", c: key === "A" ? "ga" : key === "B" ? "gb" : "gc", dist, age: v.age, f,
-    why: key === "A" ? "止损距离 ≥2%、日线转空 ≤30 天、资金费率 >0，回测里就是这一档。" : key === "B" ? "日线转空已超过 30 天，不开。" : "止损距离不到 2%，不开。" };
+  if (key === "A" && f && f.now <= 0) return { key: "B", k: "B 级", c: "gb", dist, age: v.age, f, short: "资金费率为负", why: "资金费率为负（空头在付钱），这种单历史上不赚钱。" };
+  return { key, k: key + " 级", c: key === "A" ? "ga" : key === "B" ? "gb" : "gc", dist, age: v.age, f,
+    short: key === "A" ? "条件都满足" : key === "B" ? "日线转空超过 30 天" : "离止损太近",
+    why: key === "A" ? "止损距离 ≥2%、日线转空 ≤30 天、资金费率 >0。" : key === "B" ? "日线转空已超过 30 天，历史上不赚钱。" : "止损距离不到 2%，不值得做。" };
 }
-function qxsPhaseText(v) {
-  const r = v.rsi.toFixed(0);
-  if (v.phase === "nolong") return "日线向上，不做空。";
-  if (v.phase === "nodir") return "日线方向不明，不做。";
-  if (v.phase === "wrongside") return `日线向下，但 4 小时价格还在 EMA200（${px(v.stop)}）上方，等跌回去。`;
-  if (v.phase === "above") return `红线还在黄线上方（反弹中），等死叉。`;
-  if (v.phase === "touched") return `反弹已碰到黄线、RSI 到过 50（现在 ${r}）：下一根 4 小时收盘跌回红线 ${px(v.l1)} 下方就出开空信号。`;
-  return `红线在黄线下方，等反弹碰到黄线 ${px(v.l2)}（距现价 ${pctTo(v.l2, v.price)}）再掉头。现在 RSI ${r}。`;
+// 下一根 4 小时 K 线要涨多少，RSI14 才能升到 level（只用来估"还差多少反弹"）
+function rsiRisePct(c, level, n = 14) {
+  const a = 1 / n, L = c.length; let up = 0, dn = 0;
+  for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0); if (i === 1) { up = u; dn = w; } else { up = a * u + (1 - a) * up; dn = a * w + (1 - a) * dn; } }
+  const need = (1 - a) * (dn * level / (100 - level) - up) / a;
+  return need <= 0 ? 0 : need / c[L - 1];
 }
+function coinTradeStats(T, since) { const x = T.filter(t => t.t0 >= since); if (x.length < 5) return null; const w = x.filter(t => t.r > 0).length; return { n: x.length, win: Math.round(100 * w / x.length), avg: 100 * x.reduce((a, t) => a + t.r, 0) / x.length }; }
 function winStats(T, since) {
   const x = since ? T.filter(t => t.t0 >= since) : T; if (!x.length) return null;
-  const w = x.filter(t => t.r > 0), l = x.filter(t => t.r <= 0), gw = w.reduce((a, t) => a + t.r, 0), gl = -l.reduce((a, t) => a + t.r, 0);
-  const hrs = x.map(t => (t.t1 - t.t0) / 3600000).sort((a, b) => a - b);
-  return { n: x.length, win: Math.round(100 * w.length / x.length), avg: 100 * x.reduce((a, t) => a + t.r, 0) / x.length, sum: 100 * x.reduce((a, t) => a + t.r, 0), pf: gl > 0 ? gw / gl : null, med: hrs[Math.floor(hrs.length / 2)] };
+  const w = x.filter(t => t.r > 0).length, hrs = x.map(t => (t.t1 - t.t0) / 3600000).sort((a, b) => a - b);
+  return { n: x.length, win: Math.round(100 * w / x.length), avg: 100 * x.reduce((a, t) => a + t.r, 0) / x.length, sum: 100 * x.reduce((a, t) => a + t.r, 0), med: hrs[Math.floor(hrs.length / 2)] };
+}
+// 每个币一个结论
+function labVerdict(b) {
+  const v = qxsFor(b), sw = swingFor(b), q = qxFor(b); if (!v || !sw || !q) return null;
+  const k4 = S.coins[b].tf["4h"].k, price = priceOf(b) ?? v.price, g = qxsGrade(v);
+  const since = Date.now() - 1000 * 86400000;
+  const hQ = coinTradeStats(v.trades, since), hS = coinTradeStats(sw.trades.filter(t => t.side < 0), since);
+  const badCoin = hQ && hS && hQ.avg < 0 && hS.avg < 0;
+  // 双轨：离信号还差多少（反弹到黄线 / RSI 到 50）
+  let gapQ = null, gapQtxt = "";
+  if (v.action === "观望") {
+    if (v.phase === "touched") { gapQ = 0; gapQtxt = `已经反弹到位，下一根收盘跌回 ${px(v.l1)} 以下就开空`; }
+    else if (v.phase === "wait") { const toY = Math.max(v.l2 / price - 1, 0), toR = v.hot7 >= 50 ? 0 : rsiRisePct(k4.c, 50); gapQ = Math.max(toY, toR); gapQtxt = `要先反弹 ${pct(gapQ, 1)}（碰黄线 ${px(v.l2)}）再掉头`; }
+    else if (v.phase === "above") { gapQ = 0.001; gapQtxt = "正在反弹，等红线跌回黄线下"; }
+  }
+  let gapS = null, gapStxt = "";
+  if (sw.action === "观望" && sw.dir < 0) {
+    if (sw.phase === "hot") { gapS = 0; gapStxt = `已经反弹过热，RSI 回落到 ${SHORT_RSI_IN} 以下就开空`; }
+    else if (sw.phase === "wait") { gapS = rsiRisePct(k4.c, SHORT_RSI_IN); gapStxt = `要先反弹约 ${pct(gapS, 1)}（RSI 从 ${sw.rsi.toFixed(0)} 到 ${SHORT_RSI_IN}）再回落`; }
+  }
+  const gaps = [gapQ, gapS].filter(x => x != null), gap = gaps.length ? Math.min(...gaps) : null;
+  // 结论
+  let tone, title, rank;
+  const qOpen = v.action === "开空", sOpen = sw.action === "开空", qHold = v.action === "持空中", sHold = sw.action === "持空中";
+  const swg = sw.action !== "观望" ? gradeOf(sw) : null;
+  if ((qOpen && g.key === "A") || (sOpen && swg && swg.key === "A")) { tone = "go"; title = "现在可以开空"; rank = 0; }
+  else if (v.action === "平空" || sw.action === "平空") { tone = "close"; title = "拿着的话现在平空"; rank = 1; }
+  else if (qOpen || sOpen) { tone = "no"; title = `出了开空信号，但不开（${(qOpen ? g : swg).short || (qOpen ? g : swg).k}）`; rank = 4; }
+  else if (qHold || sHold) { tone = "hold"; title = "模型持空中：拿着的继续拿，没开的别追"; rank = 2; }
+  else if (v.dir > 0) { tone = "no"; title = q.action === "开多" ? "可以开多（双轨金叉）" : "日线向上，不做空"; rank = q.action === "开多" ? 0 : 5; if (q.action === "开多") tone = "go"; }
+  else if (v.dir === 0) { tone = "no"; title = "日线方向不明，不做"; rank = 6; }
+  else if (gap === 0) { tone = "soon"; title = g.key === "A" ? "快出信号了，盯下一根 4 小时收盘" : `快出信号，但出了也不开（${g.short}）`; rank = g.key === "A" ? 1.5 : 3.5; }
+  else { tone = "wait"; title = gap != null ? `不做，等反弹 ${pct(gap, 1)}` : "不做，等反弹"; rank = 3 + (g.key === "A" ? 0 : 0.5) + (badCoin ? 0.4 : 0) + (gap || 0); }
+  if (badCoin && (tone === "go" || tone === "soon")) title += "（这个币历史上做空不赚，减半或跳过）";
+  return { b, v, sw, q, g, price, tone, title, rank, gap, gapQtxt, gapStxt, hQ, hS, badCoin, chg: S.coins[b].change };
 }
 function qxLabPage() {
   const done = SHORT_SET.every(b => S.coins[b]?.tf?.["4h"]?.k && S.coins[b]?.tf?.["1d"]?.k);
   const capital = S.prefs.capital || 1000;
-  const rows = SHORT_SET.map(b => ({ b, v: qxsFor(b), q: qxFor(b), sw: swingFor(b), p: priceOf(b) })).filter(x => x.v && x.q);
-  // 01 今天怎么做
-  const cards = [];
-  for (const x of rows) {
-    const { b, v, q, p } = x, price = p ?? v.price;
-    if (v.action === "开空" || v.action === "持空中" || v.action === "平空") {
-      const g = qxsGrade(v), entry = v.action === "持空中" ? v.entry : price, tp = rsiTarget(S.coins[b].tf["4h"].k.c, 35), z = sizePct(entry, v.stop, S.prefs.risk || 1, S.prefs.maxAlloc || 40);
-      const moved = v.entry ? 1 - price / v.entry : 0, ok = g.key === "A";
-      const head = v.action === "平空" ? `平空 ${b}` : v.action === "开空" ? `${ok ? "开空" : "出了开空信号，但不开"} ${b}` : `持空中 ${b}`;
-      cards.push(`<div class="box lab-card ${v.action === "平空" ? "lab-close" : ok ? "lab-short" : "lab-dim"}"><div class="srow"><h3>${head} <span class="chip sys">双轨做空</span></h3><span class="num ${v.action === "持空中" ? dir(moved) : ""}">${v.action === "持空中" ? `${pct(moved, 1)} · 已 ${(v.sinceBars * 4 / 24).toFixed(1)} 天` : px(price)}</span></div>
-        ${v.action === "平空" ? `<p>4 小时收盘出了平空信号（${esc((v.ev.at(-1) || {}).whyW || "")}），按现价 ${px(price)} 平。</p>` : `<div class="lv">
-          <span>进场</span><b>${px(entry)}</b><i>${v.action === "开空" ? "下一根 4 小时开盘参考价；信号是上一根收盘跌回红线下方" : `信号价，${(v.sinceBars * 4 / 24).toFixed(1)} 天前`}</i>
-          <span>止盈</span><b>${tp ? px(tp) : "—"}</b><i>4 小时 RSI 跌到 35 以下（现在 ${v.rsi.toFixed(0)}）${tp ? `，约 ${pctTo(tp, price)}` : ""}</i>
-          <span>止损</span><b>${px(v.stop)}</b><i>4 小时收盘站上 EMA200（${pctTo(v.stop, price)}），只看收盘</i>
-          ${z && ok ? `<span>仓位</span><b>${z.pct.toFixed(0)}% ≈ ${Math.round(capital * z.pct / 100)} U</b><i>每笔最多亏本金 ${S.prefs.risk || 1}%，杠杆 ≤2 倍；和现行做空合计不超过 40%</i>` : ""}</div>
-        <p class="grade">信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}，${fundW(g.f)}。${g.why}</p>`}
-        <p class="why">这类信号历史（13 个币，A 级）：近 1000 天胜率 ${QXS_PRIOR.r[0]}%、平均每次 +${QXS_PRIOR.r[1]}%、赚亏比 ${QXS_PRIOR.r[2]}；2018–2024 年 ${QXS_PRIOR.o[0]}% / +${QXS_PRIOR.o[1]}% / ${QXS_PRIOR.o[2]}。持仓中位 2～3 天。</p></div>`);
-    }
-    if (q.action === "开多" || q.action === "持多中" || q.action === "平多") {
-      const moved = q.open ? price / q.open.p0 - 1 : 0;
-      cards.push(`<div class="box lab-card ${q.action === "平多" ? "lab-close" : "lab-long"}"><div class="srow"><h3>${q.action} ${b} <span class="chip sys">双轨做多</span></h3><span class="num ${dir(moved)}">${q.action === "持多中" ? `${pct(moved, 1)} · 已 ${(q.open.bars * 4 / 24).toFixed(1)} 天` : px(price)}</span></div>
-        <p>${q.action === "平多" ? "4 小时双轨死叉，按现价卖。" : `${q.action === "开多" ? "4 小时金叉 + 热力红柱，下一根开盘买。" : `开仓价 ${px(q.open.p0)}。`}离场：双轨死叉（黄线 ${px(q.l2)}，${pctTo(q.l2, price)}）。这条和首页「4 小时双轨做多」是同一套，这里只是并排看。`}</p>
-        ${q.action === "持多中" ? qxGuardHTML(q, q.open.p0, price) : ""}</div>`);
-    }
-  }
-  const act = cards.join("");
-  // 02 两条线对比（模型账本，自动按规则进出，不含资金费率筛选）
-  const NOW = Date.now(), wins = [["近 90 天", NOW - 90 * 86400000], ["近 1 年", NOW - 365 * 86400000], ["全部数据", 0]];
-  const lines = [["现行 4 小时反弹做空", rows.flatMap(x => x.sw ? x.sw.trades.filter(t => t.side < 0).map(t => ({ ...t, b: x.b })) : [])],
-                 ["双轨做空（实验）", rows.flatMap(x => x.v.trades.map(t => ({ ...t, b: x.b })))],
-                 ["双轨做多", rows.flatMap(x => x.q.trades.map(t => ({ ...t, b: x.b })))]];
-  const cmp = `<div class="ad-table-scroll"><table class="ad-table lab-table"><thead><tr><th>线</th>${wins.map(w => `<th>${w[0]}<br><span class="ad-small">笔数 · 胜率 · 平均 · 合计</span></th>`).join("")}<th>持仓中位</th></tr></thead><tbody>${lines.map(([nm, T]) => {
-    const all = winStats(T, 0);
-    return `<tr><td><b>${nm}</b></td>${wins.map(w => { const s = winStats(T, w[1]); return `<td>${s ? `${s.n} 笔 · ${s.win}% · <span class="num ${dir(s.avg)}">${sgn(s.avg)}</span> · <span class="num ${dir(s.sum)}">${sgn(s.sum)}</span>` : "—"}</td>`; }).join("")}<td>${all ? `${all.med >= 48 ? (all.med / 24).toFixed(1) + " 天" : all.med.toFixed(0) + " 小时"}` : "—"}</td></tr>`; }).join("")}</tbody></table></div>
-    <div class="ad-note">模型账本：按规则自动进出的模拟结果（已扣手续费、滑点，资金费按 0.005%/4 小时估算），没有按资金费率筛 A 级，所以双轨做空这一行会比实际可做的 A 级单子差一些。回测里 A 级双轨做空：近 1000 天 134 笔，66%，+0.64%，赚亏比 1.30；现行 RSI 反弹做空：114 笔，61%，+2.16%，2.14。两条线谁更赚，看"合计"；谁更好拿，看"胜率"和"持仓中位"。</div>`;
-  // 03 全部 13 个币
-  const tbl = `<div class="ad-table-scroll"><table class="ad-table lab-table"><thead><tr><th>币</th><th>现价</th><th>日线</th><th>红线 / 黄线</th><th>双轨做多</th><th>双轨做空（实验）</th><th>现行反弹做空</th></tr></thead><tbody>${rows.map(x => {
-    const { b, v, q, sw, p } = x, price = p ?? v.price, g = v.action !== "观望" ? qxsGrade(v) : null;
-    const qs = q.action !== "观望" ? `<b>${q.action}</b>` : q.phase === "bullwait" || q.phase === "bullweak" ? "金叉中，没红柱 / 已错过" : q.phase === "bear" ? "死叉，等金叉" : "—";
-    const vs = v.action !== "观望" ? `<b class="${g.c}">${v.action} · ${g.key} 级</b>` : qxsPhaseText(v);
-    const ss = sw ? (sw.action !== "观望" ? `<b>${sw.action}</b>` : sw.phase === "hot" ? `反弹过热 RSI ${sw.rsi.toFixed(0)}，等回落` : sw.phase === "wait" ? `等 RSI 到 ${SHORT_RSI_IN}（现在 ${sw.rsi.toFixed(0)}）` : sw.phase === "wrongside" ? "价格在 EMA200 上方" : sw.phase === "nodir" ? "日线不明" : sw.phase === "nolong" ? "日线向上" : "—") : "—";
-    return `<tr><td><button data-coin="${b}" class="linkish"><b>${b}</b></button></td><td class="num">${px(price)}</td><td>${v.dir < 0 ? "向下" : v.dir > 0 ? "向上" : "不明"}</td><td>${v.l1 < v.l2 ? `<span class="num down">红在黄下</span>` : `<span class="num up">红在黄上</span>`}<br><span class="ad-small">${px(v.l1)} / ${px(v.l2)}</span></td><td>${qs}</td><td class="ad-small">${vs}</td><td class="ad-small">${ss}</td></tr>`; }).join("")}</tbody></table></div>`;
-  return `${headerHTML('双轨实验线')}<div class="ad-eyebrow">EXPERIMENT / 双轨曲线 + 热力图</div><div class="ad-sub">和首页的现行系统并排跑：同样 13 个币、同样的日线方向和止损止盈，只是"什么时候进"改用你看图的红线黄线。两边都记账，几个月后看哪条你拿得住、赚得多。</div>
-    <div class="banner">双轨做空是<b>实验线</b>：回测胜率高（66%）但单笔小（+0.6%），优势几乎全靠"资金费率 >0"这条筛选，所以只做 A 级；仓位按每笔亏 1% 算，和现行做空合计不超过本金 40%。双轨做多就是首页那套，这里只是放在一起看。所有数字都是历史模拟，不是盈利承诺。</div>
-    ${adSection('01 · 实验线现在要做的事', '开空 / 持空中 / 平空 来自双轨做空；开多 / 持多中 / 平多 来自双轨做多')}<section class="ad-panel todo">${!done ? `<div class="ad-placeholder">加载完成后显示</div>` : (act || `<div class="ad-placeholder">实验线现在没有要操作的。下一根 4 小时 K 线 ${nextClose4h()}。</div>`)}<p class="why">实验线的单子不进首页「你的持仓」统计，自己记一下开了哪笔；推送会标「双轨开空 / 双轨平空」。</p></section>
-    ${adSection('02 · 两条线对比', '同样 13 个币，模型自动进出的账本')}<section class="ad-panel">${done ? cmp : `<div class="ad-placeholder">加载完成后显示</div>`}</section>
-    ${adSection('03 · 全部 13 个币', '点币名看走势图')}<section class="ad-panel">${done ? tbl : `<div class="ad-placeholder">加载完成后显示</div>`}</section>
-    <div class="ad-framework"><div><b>双轨做空规则（2026-11-14 回测定下，不再改）</b><p>日线向下 + 4 小时收盘在 EMA200 下方 + 红线 EMA5 在黄线 EMA34 下方 + 最近 7 根里最高价碰到过黄线、RSI 到过 50 以上 + 本根收盘跌回红线下方 → 下一根开盘开空。止盈：4 小时 RSI 跌破 35；止损：4 小时收盘站上 EMA200；日线不再向下也平。只做 A 级（止损距离 ≥2%、日线转空 ≤30 天、资金费率 >0）。</p></div><div><b>为什么不用"金叉平空"</b><p>测过：出场改成红线上穿黄线，胜率从 66% 掉到 31～38%，两段都变差。做空的利润来自跌到超卖那一下，RSI 35 止盈抓得住，等金叉已经弹回去一截。</p></div><div><b>测过、不采用的双轨做空版本</b><p>金叉后再死叉（老数据亏）；红线拐头（胜率 71% 但平均只有 +0.4%，两段赚亏比 1.1～1.2）；纯死叉趋势做空（所有周期都亏，11-11 回测）。</p></div></div>
-    <p class="ad-footer">研究：桌面/BTC/crypto-desk-双轨反弹做空研究。13 个币 4 小时 K 线 2018-06 起，已扣手续费 0.1%、滑点 0.05%、真实资金费。回测指标不能证明未来盈利。</p>`;
+  if (!done) return `${headerHTML('双轨实验线')}<section class="ad-panel"><div class="ad-placeholder">正在加载 13 个币的 4 小时和日线 K 线…</div></section>`;
+  const V = SHORT_SET.map(labVerdict).filter(Boolean).sort((a, b) => a.rank - b.rank);
+  const go = V.filter(x => x.tone === "go"), soon = V.filter(x => x.tone === "soon" && x.g.key === "A"), hold = V.filter(x => x.tone === "hold"), close = V.filter(x => x.tone === "close");
+  const down = V.filter(x => x.v.dir < 0).length;
+  const nearest = V.filter(x => x.tone === "wait" && x.gap != null && x.g.key === "A").sort((a, b) => a.gap - b.gap).slice(0, 3);
+  // ---- 结论
+  const headline = go.length ? `现在可以开：${go.map(x => `<b>${x.b}</b>`).join("、")}` : close.length ? `${close.map(x => x.b).join("、")} 该平空` : soon.length ? `现在不开新单；${soon.map(x => `<b>${x.b}</b>`).join("、")} 快出信号了` : "现在不开新单，等反弹";
+  const hero = `<section class="ad-panel lab-hero"><div class="lab-big">${headline}</div>
+    <div class="lab-facts"><div><span>看哪个周期</span><b>4 小时 K 线</b><i>每 4 小时收盘判断一次，下一根 ${nextClose4h()}。5 分钟 / 30 分钟 / 1 小时回测都亏，不看。</i></div>
+    <div><span>方向</span><b>${down >= 10 ? "只做空" : down <= 3 ? "以做多为主" : "多空都有"}</b><i>${down} / 13 个币日线向下${down >= 10 ? "，不抄底、不做多" : ""}</i></div>
+    <div><span>最接近信号</span><b>${nearest.length ? nearest.map(x => `${x.b} ${pct(x.gap, 1)}`).join(" · ") : soon.length ? soon.map(x => x.b).join("、") : "—"}</b><i>还要反弹这么多才可能出做空信号（只列出了会是 A 级的币）</i></div>
+    <div><span>出信号时优先做</span><b>${(() => { const sc = x => Math.max(x.hQ ? x.hQ.avg : -9, x.hS ? x.hS.avg : -9); return V.filter(x => !x.badCoin && x.v.dir < 0).sort((a, b) => sc(b) - sc(a)).slice(0, 5).map(x => x.b).join("、") || "—"; })()}</b><i>这几个币近 1000 天做空赚得最多。${V.filter(x => x.badCoin).length ? `<b>${V.filter(x => x.badCoin).map(x => x.b).join("、")}</b> 历史上两种做空都不赚，出了信号也建议跳过或减半。` : ""}每个币只有十几到三十几笔，参考用。</i></div>
+    ${hold.length ? `<div><span>模型持仓中</span><b>${hold.map(x => x.b).join("、")}</b><i>拿着的按止损止盈走；没开的别追</i></div>` : ""}</div>
+    ${down >= 10 && !go.length ? `<p class="why"><b>为什么 13 个都在跌却不叫你空？</b>"红线在黄线下"只说明在跌，不是进场点。在跌势里追着空，历史上 5 分钟到日线全部是亏的（反弹太猛，一下就扫止损）。做空要等它反弹一下再掉头，那时空进去止损近、空间大。所以现在就是等，不是系统坏了。</p>` : ""}</section>`;
+  // ---- 每个币一张卡
+  const toneC = { go: "lab-go", close: "lab-close", hold: "lab-hold", soon: "lab-soon", wait: "lab-wait", no: "lab-no" };
+  const card = x => {
+    const { b, v, sw, g, price } = x, tp = rsiTarget(S.coins[b].tf["4h"].k.c, 35), z = sizePct(price, v.stop, S.prefs.risk || 1, S.prefs.maxAlloc || 40);
+    const plan = (x.tone === "go" || x.tone === "soon") && x.v.dir < 0 ? `<div class="lv"><span>进场</span><b>${x.tone === "go" ? px(price) : "等信号"}</b><i>${x.tone === "go" ? "下一根 4 小时开盘附近" : "4 小时收盘出信号后再进，不提前"}</i>
+      <span>止盈</span><b>${tp ? px(tp) : "—"}</b><i>4 小时 RSI 跌破 35</i><span>止损</span><b>${px(v.stop)}</b><i>4 小时收盘站上 EMA200（${pctTo(v.stop, price)}）</i>
+      ${z ? `<span>仓位</span><b>${z.pct.toFixed(0)}% ≈ ${Math.round(capital * z.pct / 100)} U</b><i>每笔最多亏 1%，杠杆 ≤2 倍</i>` : ""}</div>` : "";
+    const hist = [x.hS ? `现行做法 ${x.hS.n} 次 胜率 ${x.hS.win}% 平均 ${sgn(x.hS.avg)}` : "", x.hQ ? `双轨做法 ${x.hQ.n} 次 胜率 ${x.hQ.win}% 平均 ${sgn(x.hQ.avg)}` : ""].filter(Boolean).join("；");
+    return `<div class="lab-coin ${toneC[x.tone]}"><div class="lab-row1"><button data-coin="${b}" class="linkish lab-sym">${b}</button><span class="num">${px(price)}</span><span class="num ${dir(x.chg)}">${pct(x.chg, 1)}</span></div>
+      <div class="lab-verdict">${x.title}</div>
+      ${x.v.dir < 0 && x.tone !== "go" && x.tone !== "hold" && x.tone !== "close" ? `<div class="lab-gap">${x.gapStxt ? `<div><span>现行</span>${x.gapStxt}</div>` : ""}${x.gapQtxt ? `<div><span>双轨</span>${x.gapQtxt}</div>` : ""}<div><span>出信号时</span><b class="${g.c}">${g.k}</b> · ${g.key === "A" ? "可以做" : `不开（${g.short}）`}</div></div>` : ""}
+      ${plan}${hist ? `<p class="lab-hist">这个币近 1000 天：${hist}${x.badCoin ? " · <b>做空不赚的币</b>" : ""}</p>` : ""}</div>`;
+  };
+  const cards = V.map(card).join("");
+  // ---- 两条线谁更赚
+  const NOW = Date.now(), lines = [["现行反弹做空", V.flatMap(x => x.sw.trades.filter(t => t.side < 0))], ["双轨做空", V.flatMap(x => x.v.trades)], ["双轨做多", V.flatMap(x => x.q.trades)]];
+  const per = [["近 90 天", NOW - 90 * 86400000], ["近 1 年", NOW - 365 * 86400000]];
+  const cmp = `<div class="lab-cmp">${lines.map(([nm, T]) => `<div class="lab-cmpc"><b>${nm}</b>${per.map(([pn, t]) => { const s = winStats(T, t); return s ? `<div><span>${pn}</span>${s.n} 笔 · 胜率 ${s.win}% · 合计 <span class="num ${dir(s.sum)}">${sgn(s.sum)}</span></div>` : ""; }).join("")}<div><span>一笔拿多久</span>${(() => { const s = winStats(T, 0); return s ? (s.med >= 48 ? (s.med / 24).toFixed(1) + " 天" : s.med.toFixed(0) + " 小时") : "—"; })()}</div></div>`).join("")}</div>
+    <div class="ad-note">模型按规则自动进出的模拟（13 个币合计，已扣手续费），没按资金费率筛，所以比实际能做的 A 级单子差一点。看"合计"知道谁更赚，看"胜率"和"拿多久"知道谁更好拿。</div>`;
+  return `${headerHTML('双轨实验线')}${hero}
+    ${adSection('13 个币，按离信号远近排好了', '最上面的最值得看；点币名看走势图')}<div class="lab-list">${cards}</div>
+    ${adSection('两条做空线，谁更赚', '和首页现行系统并排记账')}<section class="ad-panel">${cmp}</section>
+    <details class="ad-panel"><summary><b>规则说明</b>（双轨做空，2026-11-14 回测定下）</summary><p class="why">全部看 4 小时 K 线。日线向下 + 4 小时收盘在 EMA200 下方 + 红线 EMA5 在黄线 EMA34 下方 + 最近 7 根反弹碰过黄线、RSI 到过 50 + 本根收盘跌回红线下方 → 下一根开盘开空。止盈：RSI 跌破 35；止损：收盘站上 EMA200。只做 A 级（止损距离 ≥2%、日线转空 ≤30 天、资金费率 >0）。回测 13 个币：近 1000 天胜率 ${QXS_PRIOR.r[0]}%、平均 +${QXS_PRIOR.r[1]}%；2018–2024 年 ${QXS_PRIOR.o[0]}% / +${QXS_PRIOR.o[1]}%；一笔拿 2～3 天。现行反弹做空：61% / +2.2%，拿 4 天。"金叉平空"测过更差。所有数字是历史模拟，不是盈利承诺。</p></details>`;
 }
 
 function pooled(side) {
