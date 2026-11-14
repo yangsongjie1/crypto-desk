@@ -85,7 +85,7 @@
  },
  "v3": 1,
  "health": {
-  "short": "yellow",
+  "short": "green",
   "trend": "green",
   "qx": "green"
  },
@@ -138,5 +138,10 @@
  },
  "qxInit": 1,
  "v6": 1,
- "v7": 1
+ "v7": 1,
+ "runs": [
+  1794621085677
+ ],
+ "digestDay": "2026-11-14",
+ "v8": 1
 }
