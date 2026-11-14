@@ -441,6 +441,58 @@ function qxCalc(k) {
   const phase = action !== "观望" ? null : st[L] > 0 ? (d[L] > 0 ? "bullwait" : "bullweak") : st[L] < 0 ? "bear" : "none";
   return { action, open, exiting, trades, ev, phase, state: st[L], mm: mmAt(L), hot: hotAt(L), l1: l1[L], l2: l2[L], price: c[L], barTs: ts[L] };
 }
+// ===== 双轨做空实验线（2026-11-14 回测：13 个币 4 小时，2018-06 起，真实资金费，A 级条件同现行）=====
+// 进场：日线向下（收盘<200 日线且 20 日线<50 日线）+ 4 小时收盘<EMA200 + 红线 EMA5 在黄线 EMA34 下方
+//       + 最近 7 根里最高价碰到过黄线 + 这 7 根里 RSI14 到过 50 以上 + 本根收盘跌回红线下方（上一根还在红线上）
+//       + 止损距离（到 EMA200）≥2% + 日线转空 ≤30 天
+// 出场：4 小时 RSI14 <35 止盈 / 4 小时收盘站上 EMA200 止损 / 日线不再向下（和现行做空一样；"金叉平空"测过更差）
+// 结果：近 1000 天 134 笔，胜率 66%，平均 +0.64%，赚亏比 1.30，回撤 −8.6%；2018～2024-02 223 笔，66%，+0.46%，1.16
+// 对照现行 RSI60 反弹做空：114 笔 61% +2.16% 2.14 / 179 笔 64% +1.74% 1.65。双轨版胜率高、单笔小、持仓短（中位 56 小时 vs 92 小时）
+// 研究：桌面/BTC/crypto-desk-双轨反弹做空研究/backtest_qx_rebound.py
+function qxsCalc(k4, k1) {
+  const H = 14400000, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005, LOOK = 7;
+  const ema = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
+  const rsiF = (c, n) => { const L = c.length, o = new Float64Array(L).fill(50), a = 1 / n; let up = 0, dn = 0;
+    for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0);
+      if (i === 1) { up = u; dn = w; } else { up = a * u + (1 - a) * up; dn = a * w + (1 - a) * dn; } o[i] = dn === 0 ? 50 : 100 - 100 / (1 + up / dn); } return o; };
+  const c = k4.c, o = k4.o, h = k4.h, n = c.length, e200 = ema(c, 200), r = rsiF(c, 14), e5 = ema(c, 5), e34 = ema(c, 34);
+  const c1 = k1.c, m = c1.length, d200 = ema(c1, 200), d20 = ema(c1, 20), d50 = ema(c1, 50);
+  const dir = new Int8Array(n); let j = -1;
+  for (let i = 0; i < n; i++) { const ct = k4.ts[i] + H; while (j + 1 < m && k1.ts[j + 1] + D <= ct) j++;
+    dir[i] = j < W ? 0 : c1[j] > d200[j] && d20[j] > d50[j] ? 1 : c1[j] < d200[j] && d20[j] < d50[j] ? -1 : 0; }
+  const dage = new Float64Array(n); for (let i = 1; i < n; i++) dage[i] = dir[i] === -1 ? dage[i - 1] + 1 : 0;
+  const touchedAt = i => { for (let q = Math.max(0, i - LOOK + 1); q <= i; q++) if (h[q] >= e34[q]) return true; return false; };
+  const hotAt = i => { let mx = 0; for (let q = Math.max(0, i - LOOK + 1); q <= i; q++) mx = Math.max(mx, r[q]); return mx; };
+  const trig = new Uint8Array(n), gateOk = new Uint8Array(n);
+  for (let i = LOOK; i < n; i++) {
+    trig[i] = e5[i] < e34[i] && c[i] < e5[i] && c[i - 1] >= e5[i - 1] && touchedAt(i) && hotAt(i) >= 50 ? 1 : 0;
+    gateOk[i] = e200[i] / c[i] - 1 >= 0.02 && dage[i] / 6 <= 30 ? 1 : 0;
+  }
+  const want = new Int8Array(n); let s = 0;
+  for (let i = 1; i < n; i++) {
+    if (!s && c[i] < e200[i] && trig[i] && dir[i] === -1 && gateOk[i]) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
+    want[i] = i < W ? 0 : s && dir[i] === -1 ? -1 : 0;
+  }
+  const why = i => r[i] < 35 ? "tp" : c[i] > e200[i] ? "sl" : "dir";
+  const whyW = { tp: "4 小时 RSI 跌破 35 止盈", sl: "4 小时收盘站上 EMA200 止损", dir: "日线不再向下" };
+  const trades = [], ev = []; let side = 0, e = 0, eI = 0, open = null;
+  for (let i = W + 1; i < n; i++) { const w = want[i - 1];
+    if (side && w !== side) { const x = o[i], wy = why(i - 1); trades.push({ side, r: 1 - x * (1 + SLIP) / e - 2 * FEE - FUND * (i - eI), t0: k4.ts[eI], t1: k4.ts[i], p0: e, p1: x * (1 + SLIP), bars: i - eI, why: wy }); ev.push({ t: k4.ts[i - 1] + H, act: "平空", price: c[i - 1], why: wy, whyW: whyW[wy] }); side = 0; }
+    if (!side && w) { side = w; e = o[i] * (1 - SLIP); eI = i; ev.push({ t: k4.ts[i - 1] + H, act: "开空", price: c[i - 1], dist: e200[i - 1] / c[i - 1] - 1, age: dage[i - 1] / 6, rsi: r[i - 1] }); } }
+  const L = n - 1, now = want[L], prev = want[L - 1];
+  if (side) open = { side, t0: k4.ts[eI], p0: e, bars: n - eI };
+  else if (now) { open = { side: now, t0: k4.ts[L] + H, p0: c[L], bars: 0 }; ev.push({ t: k4.ts[L] + H, act: "开空", price: c[L], dist: e200[L] / c[L] - 1, age: dage[L] / 6, rsi: r[L], fresh: true }); }
+  if (prev && !now && !ev.some(x => x.act === "平空" && x.t === k4.ts[L] + H)) ev.push({ t: k4.ts[L] + H, act: "平空", price: c[L], why: why(L), whyW: whyW[why(L)] });
+  const st = () => { const t = trades; if (!t.length) return { n: 0 }; const w = t.filter(x => x.r > 0).length; return { n: t.length, w, win: Math.round(100 * w / t.length), avg: 100 * t.reduce((a, x) => a + x.r, 0) / t.length }; };
+  let action = "观望", entry = null, sinceBars = null, phase = null, sigI = L;
+  if (now && now !== prev) action = "开空";
+  else if (now) { action = "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; sigI = p; }
+  else if (prev) action = "平空";
+  else { const d = dir[L]; phase = d > 0 ? "nolong" : !d ? "nodir" : c[L] > e200[L] ? "wrongside" : e5[L] >= e34[L] ? "above" : (touchedAt(L) && hotAt(L) >= 50) ? "touched" : "wait"; }
+  return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, ev, open, stats: st(),
+    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI], l1: e5[L], l2: e34[L], touched: touchedAt(L), hot7: hotAt(L), gate: !!gateOk[L] };
+}
+
 async function push(title, body, important) {
   if (!KEY) { console.log("  [试运行，不推送]", title, "|", body); return; }
   const url = `https://api.day.app/${KEY}/${encodeURIComponent(title)}/${encodeURIComponent(body)}?group=${encodeURIComponent("决策台")}&url=${encodeURIComponent(PAGE)}${important ? "&level=timeSensitive" : ""}`;
@@ -470,14 +522,15 @@ async function push(title, body, important) {
       const short = SHORT_SET.includes(b);
       const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h", short ? HISTORY["4h"] : 3); used.add(s1); used.add(s4);
       const k1 = toK(r1, "1d"), price = +r4[r4.length - 1][4];
-      let v = null, q = null;
+      let v = null, q = null, qs = null;
       if (short) {
         const k4 = toK(r4, "4h"); v = swingCalc(k4, k1);
         if (v.dir > 0) Object.assign(v, { action: "观望", side: 0 });
         v.tp = rsiTarget(k4.c, 35);
         q = qxCalc(k4);   // 4 小时双轨做多（2026-11-11 起），只在 13 个主流币上跑
+        qs = qxsCalc(k4, k1); if (qs.dir > 0) Object.assign(qs, { action: "观望", side: 0 });   // 双轨做空实验线（2026-11-14 起）
       }
-      R[b] = { v, q, t: trendCalc(k1, true), price: v ? v.price : price, f: short ? await funding(b) : null };
+      R[b] = { v, q, qs, t: trendCalc(k1, true), price: v ? v.price : price, f: short ? await funding(b) : null };
     } catch (e) { console.log(b, "拉取失败：", e.message); }
   }
   // 2) 策略状态灯（最近 30 笔）
@@ -546,6 +599,7 @@ async function push(title, body, important) {
   ].join("\n");
   const trendInit = !state.trendInit; state.trendInit = 1;
   const qxInit = !state.qxInit; state.qxInit = 1;   // 第一次跑 4 小时双轨：只记下历史信号，不补推
+  const qsInit = !state.qsInit; state.qsInit = 1;   // 第一次跑双轨做空实验线：只记下历史信号，不补推
   // 3) 逐个币生成推送
   const trendKnown = new Set(state.trendCoins || (state.trendInit ? SHORT_SET : []));
   for (const b of SYMBOLS) {
@@ -639,6 +693,28 @@ async function push(title, body, important) {
           body: `离场原因：4小时双轨死叉\n离场价 ${fmt(e.price)}，现价 ${fmt(p)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}\n只平多，不要反手做空` });
       }
     });
+    // 双轨做空实验线（2026-11-14 起）：查最近 24 小时的信号，只有 A 级才算"可以做"
+    const qs = R[b].qs;
+    if (qs) qs.ev.forEach((e, idx) => {
+      const key = `${b}|qxs|${e.t}|${e.act}`, NOW4 = Date.now();
+      if (NOW4 - e.t > 86400000 || sent.has(key)) return;
+      sent.add(key);
+      if (first || qsInit) return;
+      const lateH = (NOW4 - e.t) / 3600000, late = lateH >= 1.5 ? `（延迟 ${Math.round(lateH)} 小时）` : "", p = px;
+      if (e.act === "开空") {
+        if (qs.ev.slice(idx + 1).some(x => x.act === "平空")) return;
+        const A = isAGrade(e.dist, e.age, f), gradeTxt = !(e.dist >= 0.02) ? "C 级（止损距离不到 2%）" : !(e.age <= 30) ? "B 级（日线转空超过 30 天）" : (f && f.now <= 0) ? "B 级（资金费率为负，空头在付钱）" : "A 级";
+        const moved = 1 - p / e.price;
+        events.push({ coin: b, kind: "qsopen", price: p, sigPrice: e.price, sig: e.t, important: A, title: A ? `${b} 开空 · 双轨实验线${late}` : `${b} 双轨开空信号 · ${gradeTxt.slice(0, 3)}不开`,
+          body: `${A ? "" : `只观察不开：${gradeTxt}。双轨做空的优势几乎全靠 A 级条件，不是 A 级历史上不赚钱。\n`}${entryLine(p, `4小时收盘 ${fmt(e.price)} 反弹碰过黄线后跌回红线下方`, late ? `，${moved >= 0 ? "已跌" : "已涨"} ${Math.abs(moved * 100).toFixed(1)}%` : "")}\n止损：${fmt(qs.stop)}（${pctS(qs.stop / p - 1)}）= 4小时 EMA200，4小时收盘站上就平\n止盈参考：4小时收盘 RSI 跌破 35 时平仓（看「双轨平空」推送）\n${A ? sizeLine("short", p, qs.stop, "杠杆≤2倍", null, b) : ""}\n等级：${gradeTxt}（止损距离 ${(e.dist * 100).toFixed(1)}%，日线转空 ${e.age < 1 ? "不到 1 天" : Math.round(e.age) + " 天"}，${f ? `资金费率 ${(f.now * 100).toFixed(4)}%` : "资金费率取不到"}）\n历史（13 个币，A 级，2018 年起）：胜率 66%，平均每次 +0.5%～+0.6%，持仓中位 2～3 天。这是实验线，和现行反弹做空并排比，网页「双轨实验」页看对比。` });
+      } else {
+        const opened = [...qs.ev.slice(0, idx)].reverse().find(x => x.act === "开空");
+        if (opened && !sentBefore.has(`${b}|qxs|${opened.t}|开空`) && NOW4 - opened.t < 86400000) return;
+        const gain = opened ? 1 - e.price / opened.price - 2 * 0.001 : null;
+        events.push({ coin: b, kind: "qsclose", price: p, sigPrice: e.price, sig: e.t, important: true, title: `${b} 平空 · 双轨实验线${late}`,
+          body: `离场原因：${e.whyW}\n离场价 ${fmt(e.price)}，现价 ${fmt(p)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}\n只平空，不反手做多` });
+      }
+    });
     // 日线趋势做多：查最近 2 天的信号
     if (t) t.ev.forEach((e, idx) => {
       const key = `${b}|trend|${e.t}|${e.act}`, NOW2 = Date.now();
@@ -725,7 +801,9 @@ async function push(title, body, important) {
     `1）做空只推 A 级（止损 ≥2%、日线转空 ≤30 天、资金费率不为负）。B、C 级不再推送开空，网页上仍能看到、标为"观察，不开"。回测：A 级做空 2018 年起三段都赚；B 级是拖后腿的那部分。\n2）空单合计名义不超过本金 40%：开空推送里会列出模型里还持有的空单各占多少，网页「可以开仓」按你标记的持仓精确算，到上限就写"这笔不开"。\n3）策略状态灯只作提示，不再自动减半 / 暂停（回测：按灯减仓反而少赚）。\n做多两套不变。`, false);
   if (!first && state.v7 && !state.v8) await push("盯盘已调整：做空门槛放宽 + 每日状态",
     `1）做空反弹门槛从 RSI 65 放宽到 60：信号大约多八成，回测两段数据总收益都更高（单笔平均会低一些）。A 级的其他条件不变（止损 ≥2%、转空 ≤30 天、资金费率不为负）。\n2）B / C 级信号改成发一条普通提醒「只观察不开」，不再完全静音。\n3）每天第一次运行发一条「每日状态」：没信号也发，写清为什么没信号、程序跑了几次。哪天没收到，就是程序没在跑。\n4）程序中断超过 10 小时，恢复时会提醒。`, false);
-  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.trendCoins = SYMBOLS;
+  if (!first && state.v8 && !state.v9) await push("新增：双轨实验线",
+    `网页多了一个「双轨实验」页：同样 13 个币，"什么时候进"改用红线 EMA5 / 黄线 EMA34——日线向下时，反弹碰到黄线再跌回红线下方就开空；止盈止损和现行一样（RSI 35 / EMA200）。只做 A 级。\n回测：胜率 66%、平均每次 +0.6%、持仓 2～3 天（现行反弹做空：61%、+2.2%、4 天）。胜率高、单笔小、好拿一些。\n两条线并排记账，推送会标「双轨开空 / 双轨平空」。实验线不进首页持仓统计。`, false);
+  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.v9 = 1; state.trendCoins = SYMBOLS;
   // 每日状态单独发（不并进汇总），其余超过 6 条才合并
   const dg = events.filter(e => e.kind === "digest"), rest = events.filter(e => e.kind !== "digest");
   if (rest.length > 6) await push(`${rest.length} 条新提醒`, rest.map(e => e.title).join("\n"), true);
