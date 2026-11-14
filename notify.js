@@ -254,6 +254,11 @@ function toK(arr, tf) {
   ["o", "h", "l", "c"].forEach((f, i) => { k[f] = Float64Array.from(r, x => x[i + 1]); });
   return k;
 }
+// 做空反弹门槛（2026-11-14 回测，13 个币，A 级 + 资金费率 >0，真实资金费）：RSI 从 65 降到 60
+//   近 1000 天：64 笔 → 114 笔，合计 +220% → +246%，PF 3.27 → 2.14，年化 7.8% → 8.3%，回撤 −6.6% → −8.2%
+//   2018～2024-02：93 笔 → 179 笔，合计 +113% → +311%，PF 1.37 → 1.65，年化 1.4% → 4.5%，回撤 −12.0% → −11.4%
+//   62 结果相近；55 明显变差（PF 1.31 / 1.14）。同时测过去掉资金费率条件、转空放宽到 45 天、日线方向只看 EMA200：多出来的单子老数据都亏，不采用
+const SHORT_RSI_IN = 60;
 function swingCalc(k4, k1) {
   const H = 14400000, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005;
   const ema = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
@@ -268,7 +273,7 @@ function swingCalc(k4, k1) {
   const dage = new Float64Array(n); for (let i = 1; i < n; i++) dage[i] = dir[i] === -1 ? dage[i - 1] + 1 : 0; // 日线连续向下的 4 小时根数
   const want = new Int8Array(n); let s = 0, l = 0;
   for (let i = 1; i < n; i++) {
-    if (!s && c[i] < e200[i] && r[i - 1] > 65 && r[i] <= 65) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
+    if (!s && c[i] < e200[i] && r[i - 1] > SHORT_RSI_IN && r[i] <= SHORT_RSI_IN) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
     if (!l && c[i] > e200[i] && r[i - 1] < 35 && r[i] >= 35) l = 1; else if (l && (r[i] > 65 || c[i] < e200[i])) l = 0;
     want[i] = i < W ? 0 : l && dir[i] === 1 ? 1 : s && dir[i] === -1 ? -1 : 0;
   }
@@ -289,7 +294,7 @@ function swingCalc(k4, k1) {
   if (now && now !== prev) action = now > 0 ? "开多" : "开空";
   else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; sigI = p; }
   else if (prev) action = prev > 0 ? "平多" : "平空";
-  else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
+  else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > SHORT_RSI_IN : r[L] < 35) ? "hot" : "wait"; }
   return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, ev, stats: { L: st(1), S: st(-1) },
     age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI] };
 }
@@ -526,10 +531,10 @@ async function push(title, body, important) {
     const down = dist >= 0.02 && age <= 30 && f && f.now <= 0;
     const g = dist < 0.02 ? ["C 级（差）", "止损不到 2%，历史胜率约 2 成，建议跳过"]
       : down ? ["B 级（一般）", "本来是 A 级，但资金费率为负，历史上这种单胜率：近 1000 天 50%，2018–2024 年 44%，只有 B 级水平"]
-      : age <= 30 ? ["A 级（好）", "历史胜率：近 1000 天 61%，2018–2024 年 54%"]
+      : age <= 30 ? ["A 级（好）", "历史胜率：近 1000 天 60%，2018–2024 年 64%"]
       : ["B 级（一般）", "历史胜率：近 1000 天 46%，2018–2024 年 38%（老数据整体亏）"];
     const fl = f ? `\n资金费率：${(f.now * 100).toFixed(4)}%（最近 3 次平均，${f.now > 0 ? "多头在付钱" : "空头在付钱"}）` : "";
-    const ch = rsi != null && rsi < 50 ? `\n⚠ 追跌信号：开空时 4小时 RSI 只有 ${rsi.toFixed(0)}，是大跌后日线刚转空才触发的。历史上这类信号近 1000 天 19 笔平均 −0.3%，老数据 13 笔平均 −4.6%（正常信号近 1000 天 +2.2%）。建议不追，等反弹到 RSI 65 附近再回落再空` : "";
+    const ch = rsi != null && rsi < 50 ? `\n⚠ 追跌信号：开空时 4小时 RSI 只有 ${rsi.toFixed(0)}，是大跌后日线刚转空才触发的。历史上这类信号近 1000 天 19 笔平均 −0.3%，老数据 13 笔平均 −4.6%（正常信号近 1000 天 +2.2%）。建议不追，等反弹到 RSI 60 以上再回落再空` : "";
     return `等级：${g[0]}（日线转空 ${age < 1 ? "不到 1" : Math.round(age)} 天）· ${g[1]}${fl}${ch}`;
   };
   // 2026-11-09 推送格式：进场 / 止损 / 止盈参考 三行（只改文字，信号和仓位规则不变；止盈只写规则，不写目标价）
@@ -563,7 +568,16 @@ async function push(title, body, important) {
         const lateH = (NOW - close) / 3600000, late = lateH >= 1.5 ? `（延迟 ${Math.round(lateH)} 小时）` : "";
         if (e.act === "开空") {
           if (v.ev.slice(idx + 1).some(x => x.act === "平空")) return; // 提醒到达前已经平空：不再推送
-          if (!isAGrade(e.dist, e.age, f)) { sent.add(`${b}|swing|${e.t}|skip`); console.log(`  ${b} 开空信号是 ${e.dist < 0.02 ? "C" : "B"} 级，不推送（只做 A 级）`); return; }
+          if (!isAGrade(e.dist, e.age, f)) {
+            sent.add(`${b}|swing|${e.t}|skip`);
+            // 2026-11-14：B / C 级改成发一条低优先级「观察」推送，让你知道系统看到了信号、为什么不建议开
+            const why = e.dist < 0.02 ? `止损只离 ${(e.dist * 100).toFixed(1)}%（不到 2%），历史胜率约 2 成`
+              : e.age > 30 ? `日线转空已经 ${Math.round(e.age)} 天（超过 30 天），历史上这类单老数据整体亏`
+              : `资金费率为负（${(f.now * 100).toFixed(4)}%，空头在付钱），历史上这类单老数据平均 −1.6%`;
+            events.push({ coin: b, kind: "watch", price: v.price, sigPrice: e.price, sig: close, important: false, title: `${b} 做空信号 · ${e.dist < 0.02 ? "C" : "B"} 级，只观察不开${late}`,
+              body: `4小时收盘 ${fmt(e.price)} 出了做空信号，但不是 A 级：${why}。\n不建议开仓，也不给仓位；之后的平仓、跟进不再提醒。\n止损线（4小时 EMA200）${fmt(v.stop)}，现价 ${fmt(v.price)}。` });
+            return;
+          }
           const move = 1 - v.price / e.price;
           const body = `${entryLine(v.price, `信号收盘 ${fmt(e.price)}`, late ? `，${move >= 0 ? "已跌" : "已涨"} ${Math.abs(move * 100).toFixed(1)}%，2 天内仍可跟进` : "")}\n${shortPlan(v, v.price, b)}\n${gradeLine(e.dist, e.age, f, e.rsi)}`;
           events.push({ coin: b, kind: "open", price: v.price, sigPrice: e.price, stop: v.stop, tp: v.tp, sig: close, important: true, title: `${b} 开空 · 4小时做空${late}${e.rsi != null && e.rsi < 50 ? "（追跌，建议等反弹）" : ""}`, body });
@@ -660,6 +674,43 @@ async function push(title, body, important) {
           : `过去 7 天资金费率折算本金年化只剩约 ${yr}，扣掉手续费已经不划算。现货卖出、合约空单平掉，两边同时操作。` });
     state.carry[b] = on;
   }
+  // ===== 运行记录 + 每日状态（2026-11-14）=====
+  // GitHub 的定时任务不保证准时（11 月中旬实际每 5～8 小时才跑一次）。这里记下每次运行时间（一小时最多记一次），
+  // 每天第一次运行（UTC 0 点后 = 马尼拉早 8 点后）发一条「每日状态」：没信号也发，写清为什么没信号、程序跑了几次。
+  // 哪天没收到这条 = 程序没在跑。中断超过 10 小时恢复时另外提醒一次。
+  {
+    const NOWD = Date.now(), runs = (state.runs || []).filter(x => NOWD - x < 3 * 86400000), lastRun = runs.length ? runs[runs.length - 1] : null;
+    const gapH = lastRun ? (NOWD - lastRun) / 3600000 : 0;
+    if (!first && lastRun && gapH >= 10)
+      events.push({ coin: null, kind: "ops", important: true, title: `盯盘程序中断了 ${Math.round(gapH)} 小时，刚恢复`,
+        body: `上一次成功运行是 ${Math.round(gapH)} 小时前。这段时间的 4 小时信号会在这次补发（标注"延迟"）；超过 24 小时的不补。\n原因多半是 GitHub 定时任务延迟，信号请以网页为准。` });
+    if (!lastRun || NOWD - lastRun >= 55 * 60000) runs.push(NOWD);
+    state.runs = runs;
+    const day = new Date(NOWD).toISOString().slice(0, 10);
+    if (!first && state.digestDay !== day) {
+      const sw = SHORT_SET.map(b => [b, R[b] && R[b].v]).filter(x => x[1]);
+      const down = sw.filter(x => x[1].dir < 0).length, up = sw.filter(x => x[1].dir > 0).length;
+      const btc = R.BTC && R.BTC.v, dW = d => d < 0 ? "向下" : d > 0 ? "向上" : "不明";
+      const heldS = sw.filter(x => x[1].action === "持空中"), heldA = heldS.filter(x => openShorts[x[0]] != null);
+      const waiting = sw.filter(x => x[1].dir < 0 && x[1].action === "观望").sort((a, c) => c[1].rsi - a[1].rsi);
+      const hot = waiting.filter(x => x[1].phase === "hot"), negF = SHORT_SET.filter(b => R[b] && R[b].f && R[b].f.now <= 0).length;
+      const tOpen = SYMBOLS.filter(b => R[b] && R[b].t && R[b].t.open && !R[b].t.exiting).length, qOpen = SHORT_SET.filter(b => R[b] && R[b].q && R[b].q.action === "持多中").length;
+      const r24 = runs.filter(x => NOWD - x < 86400000), gaps = r24.slice(1).map((x, i) => (x - r24[i]) / 3600000), maxGap = gaps.length ? Math.max(...gaps) : null;
+      const mkt = btc && btc.dir < 0 || down >= Math.ceil(sw.length * 0.6) ? "下跌市" : btc && btc.dir > 0 && up >= Math.ceil(sw.length * 0.6) ? "上涨市" : "方向不明";
+      const shortLine = heldA.length ? `做空：模型持有 A 级空单 ${heldA.map(x => x[0]).join("、")}，按规则拿着。`
+        : !down ? `做空：没有日线向下的币，做空系统不做。`
+        : hot.length ? `做空：${hot.map(x => `${x[0]}（RSI ${x[1].rsi.toFixed(0)}）`).join("、")} 反弹已过热，RSI 回落到 ${SHORT_RSI_IN} 以下就出信号。`
+        : `做空：没有信号。${down} 个币日线向下，都在等 4 小时反弹到 RSI ${SHORT_RSI_IN} 以上再回落${waiting.length ? `；现在最高的是 ${waiting.slice(0, 3).map(x => `${x[0]} ${x[1].rsi.toFixed(0)}`).join("、")}` : ""}。一路下跌不反弹时不追空（回测：追跌是亏的）。`;
+      const lines = [
+        `${mkt}：BTC ${btc ? fmt(btc.price) : "—"}，日线${btc ? dW(btc.dir) : "—"}；13 个主流币里 ${down} 个日线向下、${up} 个向上。`,
+        shortLine + (heldS.length > heldA.length ? `另有 ${heldS.length - heldA.length} 笔 B / C 级只观察。` : "") + (negF ? `${negF} 个币资金费率为负，这些币出信号也只算 B 级（观察）。` : ""),
+        `做多：日线趋势持多 ${tOpen} 个，4 小时双轨持多 ${qOpen} 个${!tOpen && !qOpen ? "；等日线突破 20 日新高，或 4 小时双轨金叉 + 红柱" : ""}。`,
+        (r24.length < 2 ? `程序：运行记录今天开始记，明天起这里会写过去 24 小时跑了几次。` : `程序：过去 24 小时跑了 ${r24.length} 次，最长间隔 ${maxGap.toFixed(1)} 小时${maxGap > 4.5 ? "（GitHub 延迟偏大，信号可能晚到，请以网页为准）" : ""}。`) + `哪天没收到这条，就是程序没在跑。`,
+      ];
+      events.push({ coin: null, kind: "digest", important: false, title: `每日状态 ${day.slice(5)}：${mkt}，${heldA.length ? `持有空单 ${heldA.length} 笔` : hot.length ? `${hot.length} 个币快出做空信号` : tOpen + qOpen ? `持多 ${tOpen + qOpen} 个` : "现在没有信号"}`, body: lines.join("\n") });
+      state.digestDay = day;
+    } else if (first) state.digestDay = day;
+  }
   console.log("数据源：", [...used].join("、") || "全部失败");
   console.log(summary.join("\n"));
   if (!summary.length) { process.exitCode = 1; return; }
@@ -672,9 +723,14 @@ async function push(title, body, important) {
     `第三套系统：13 个主流币上，4小时双轨金叉（红线 EMA5 上穿黄线 EMA34）且热力图有红柱就买，死叉就卖（每次死叉都卖）；只做多。\n空单中途反向涨到 3% / 5% 会各提醒一次「持仓守护」，只提示、不叫你操作。\n日线趋势、4小时双轨两套做多各用一半资金，建议仓位已按一半算；4小时做空不变。\n策略状态：日线趋势做多 ${H.trend.word}；4小时双轨做多 ${H.qx.word}。`, false);
   if (!first && state.v6 && !state.v7) await push("盯盘已调整：做空只做 A 级 · 空头合计封顶 40%",
     `1）做空只推 A 级（止损 ≥2%、日线转空 ≤30 天、资金费率不为负）。B、C 级不再推送开空，网页上仍能看到、标为"观察，不开"。回测：A 级做空 2018 年起三段都赚；B 级是拖后腿的那部分。\n2）空单合计名义不超过本金 40%：开空推送里会列出模型里还持有的空单各占多少，网页「可以开仓」按你标记的持仓精确算，到上限就写"这笔不开"。\n3）策略状态灯只作提示，不再自动减半 / 暂停（回测：按灯减仓反而少赚）。\n做多两套不变。`, false);
-  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.trendCoins = SYMBOLS;
-  if (events.length > 6) await push(`${events.length} 条新提醒`, events.map(e => e.title).join("\n"), true);
-  else for (const e of events) await push(e.title, e.body, e.important);
+  if (!first && state.v7 && !state.v8) await push("盯盘已调整：做空门槛放宽 + 每日状态",
+    `1）做空反弹门槛从 RSI 65 放宽到 60：信号大约多八成，回测两段数据总收益都更高（单笔平均会低一些）。A 级的其他条件不变（止损 ≥2%、转空 ≤30 天、资金费率不为负）。\n2）B / C 级信号改成发一条普通提醒「只观察不开」，不再完全静音。\n3）每天第一次运行发一条「每日状态」：没信号也发，写清为什么没信号、程序跑了几次。哪天没收到，就是程序没在跑。\n4）程序中断超过 10 小时，恢复时会提醒。`, false);
+  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.trendCoins = SYMBOLS;
+  // 每日状态单独发（不并进汇总），其余超过 6 条才合并
+  const dg = events.filter(e => e.kind === "digest"), rest = events.filter(e => e.kind !== "digest");
+  if (rest.length > 6) await push(`${rest.length} 条新提醒`, rest.map(e => e.title).join("\n"), true);
+  else for (const e of rest) await push(e.title, e.body, e.important);
+  for (const e of dg) await push(e.title, e.body, false);
   if (!KEY) { console.log("没有设置 BARK_KEY：这次只是试运行，不保存状态。"); return; }
   // 推送记录：网页「消息」页读取 alerts.json
   if (events.length) {

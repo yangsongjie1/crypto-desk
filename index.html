@@ -814,6 +814,9 @@ function tfChips(b) {
     return `<div class="tfc ${s ? s.st : ""}"><span>${TF_NAME[tf]}</span><b>${s ? s.word : "…"}</b></div>`;
   }).join("")}</div>`;
 }
+// 做空反弹门槛（2026-11-14 回测，13 个币，A 级 + 资金费率 >0，真实资金费）：RSI 从 65 降到 60
+//   近 1000 天：64 笔 → 114 笔，合计 +220% → +246%，PF 3.27 → 2.14；2018～2024-02：93 笔 → 179 笔，合计 +113% → +311%，PF 1.37 → 1.65
+const SHORT_RSI_IN = 60;
 function swingCalc(k4, k1) {
   const H = 14400000, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005;
   const ema = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
@@ -828,7 +831,7 @@ function swingCalc(k4, k1) {
   const dage = new Float64Array(n); for (let i = 1; i < n; i++) dage[i] = dir[i] === -1 ? dage[i - 1] + 1 : 0; // 日线连续向下的 4 小时根数
   const want = new Int8Array(n); let s = 0, l = 0;
   for (let i = 1; i < n; i++) {
-    if (!s && c[i] < e200[i] && r[i - 1] > 65 && r[i] <= 65) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
+    if (!s && c[i] < e200[i] && r[i - 1] > SHORT_RSI_IN && r[i] <= SHORT_RSI_IN) s = 1; else if (s && (r[i] < 35 || c[i] > e200[i])) s = 0;
     if (!l && c[i] > e200[i] && r[i - 1] < 35 && r[i] >= 35) l = 1; else if (l && (r[i] > 65 || c[i] < e200[i])) l = 0;
     want[i] = i < W ? 0 : l && dir[i] === 1 ? 1 : s && dir[i] === -1 ? -1 : 0;
   }
@@ -848,7 +851,7 @@ function swingCalc(k4, k1) {
   if (now && now !== prev) action = now > 0 ? "开多" : "开空";
   else if (now) { action = now > 0 ? "持多中" : "持空中"; let p = L; while (p > 0 && want[p - 1] === now) p--; entry = p + 1 <= L ? o[p + 1] : c[L]; sinceBars = L - p; sigI = p; }
   else if (prev) action = prev > 0 ? "平多" : "平空";
-  else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > 65 : r[L] < 35) ? "hot" : "wait"; }
+  else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > SHORT_RSI_IN : r[L] < 35) ? "hot" : "wait"; }
   return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, open, ddir, stats: { L: st(1), S: st(-1) },
     age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI] };
 }
@@ -870,7 +873,7 @@ const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
 // ===== 做空信号等级（2026-11-05 回测：13 个币 4 小时做空，2018 年起，已扣手续费、滑点、资金费）=====
 // 两个维度事先定好：止损距离（≥2%）、日线转空天数（≤30 天）。日线刚转空时做反弹更容易成功：9 年里有 8 年 A 级好于 B 级
 const GRADE = {
-  A: { k: "A 级（好）", c: "ga", why: "止损距离 2% 以上，日线转空 30 天内", r: [61, 2.7], o: [54, 0.4], tip: "历史上最可靠的一档。" },
+  A: { k: "A 级（好）", c: "ga", why: "止损距离 2% 以上，日线转空 30 天内", r: [60, 2.2], o: [64, 1.7], tip: "历史上最可靠的一档。" },
   B: { k: "B 级（不开）", c: "gb", why: "止损距离 2% 以上，但日线转空已超过 30 天", r: [46, 1.1], o: [38, -1.8], tip: "2018–2024 年这一档整体是亏的。2026-11-11 起只做 A 级：组合回测里 B 级是把 2021–2023 回撤从 −29% 拖到 −49% 的那部分，不开。" },
   C: { k: "C 级（不开）", c: "gc", why: "止损距离不到 2%", r: [18, -0.3], o: [20, -0.6], tip: "不开。" },
 };
@@ -909,7 +912,7 @@ const ageW = a => a < 1 ? "不到 1 天" : `${Math.round(a)} 天`;
 const fundW = f => f ? `资金费率 ${(f.now * 100).toFixed(4)}%（${f.now > 0 ? "多头在付钱" : "空头在付钱"}）` : "资金费率暂时取不到";
 // 2026-11-06 回测：开空时 4 小时 RSI 已低于 50（多是暴跌后日线刚转空才触发），历史表现明显差于正常信号
 const isChase = v => v && v.side < 0 && v.sigRsi != null && v.sigRsi < 50;
-const CHASE_TIP = "历史上这类信号：近 1000 天 19 笔平均每次 −0.3%，2018–2024 年 13 笔平均 −4.6%；正常信号（RSI ≥50）近 1000 天平均 +2.2%。离止盈太近、离止损太远，建议不追，等反弹到 RSI 65 附近再回落时再空。";
+const CHASE_TIP = "历史上这类信号：近 1000 天 19 笔平均每次 −0.3%，2018–2024 年 13 笔平均 −4.6%；正常信号（RSI ≥50）近 1000 天平均 +2.2%。离止盈太近、离止损太远，建议不追，等反弹到 RSI 60 以上再回落时再空。";
 function gradeHTML(v, preview) {
   const g = gradeOf(v), f = ([w, a]) => `胜率 ${w}%，平均每次 ${sgn(a)}`;
   return `${!preview && isChase(v) ? `<p class="grade chase"><b class="warnc">⚠ 追跌信号</b>：开空时 4 小时 RSI 只有 ${v.sigRsi.toFixed(0)}（低于 50），是大跌之后日线刚转空才触发的。${CHASE_TIP}</p>` : ""}<p class="grade">${preview ? "如果现在发出信号，" : ""}信号等级 <b class="${g.c}">${g.k}</b>：止损距离 ${(g.dist * 100).toFixed(1)}%，日线转空 ${ageW(g.age)}，${fundW(g.f)}。历史上这一档：近 1000 天${f(g.r)}；2018–2024 年${f(g.o)}。${g.tip}</p>`;
@@ -925,8 +928,8 @@ function needText(v) {
   if (v.phase === "nolong") return "日线向上，4 小时做空系统不做：日线向上时做空，历史上 5 次有 4 次亏。做多机会看下面的日线趋势。";
   if (v.phase === "nodir") return "日线方向不明（不是明确的上升或下降趋势），这时候不做。";
   if (v.phase === "wrongside") return v.dir < 0 ? `日线向下，但 4 小时价格还在 200 均线（${px(v.stop)}）上方，等跌回均线下方再找做空机会。` : `日线向上，但 4 小时价格还在 200 均线（${px(v.stop)}）下方，等站回均线上方再找做多机会。`;
-  if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 65 以下就会发出开空信号。<br>先别提前进：约 1/4 的「快要开空」最后会作废，提前进的这部分平均亏 3.8%，整体也不比等确认赚得多。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
-  return v.dir < 0 ? `等反弹：4 小时 RSI 升到 65 以上再回落时开空（现在 RSI ${r}）。` : `等回调：4 小时 RSI 跌到 35 以下再回升时开多（现在 RSI ${r}）。`;
+  if (v.phase === "hot") return v.dir < 0 ? `反弹已经过热（RSI ${r}），等 RSI 回落到 ${SHORT_RSI_IN} 以下就会发出开空信号。<br>先别提前进：约 1/4 的「快要开空」最后会作废，提前进的这部分平均亏 3.8%，整体也不比等确认赚得多。` : `回调已经超卖（RSI ${r}），等 RSI 回升到 35 以上就会发出开多信号。`;
+  return v.dir < 0 ? `等反弹：4 小时 RSI 升到 ${SHORT_RSI_IN} 以上再回落时开空（现在 RSI ${r}）。一路下跌不反弹时不追空。` : `等回调：4 小时 RSI 跌到 35 以下再回升时开多（现在 RSI ${r}）。`;
 }
 function followAge(v) { const h = v.sinceBars * 4; return h < 24 ? `${h} 小时` : `${(h / 24).toFixed(1).replace(/\.0$/, "")} 天`; }
 function followTag(v) {
@@ -1187,7 +1190,7 @@ function todoBox(asParts) {
     return `<div class="titem"><div class="srow"><b>${x.b}</b><span>${sys(x)}<span class="chip open">拿着</span></span></div>
       <p>开${sideW(x.side)} ${px(e)}${real && f.qty ? ` × ${f.qty} ${x.b}` : ""}${real ? "（你的成交）" : "（信号价）"}，至今 ${pnlText(g)}。继续拿着，出信号会推送。</p>${lv}${x.sys === "short" ? guardHTML(x.b, e, x.price) : x.sys === "qx" ? qxGuardHTML(x.q, e, x.price) : ""}
       ${S.fillEdit === x.key ? fillForm(x.key, x.b, e, null) : `<div class="srow"><button class="link" data-coin="${x.b}">看走势图 ›</button><button class="link" data-fedit="${x.key}">${real ? "修改成交" : "填写实际成交"}</button></div>`}</div>`; }).join("")}`);
-  if (watch.length) (P.watch = `<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 65 以下就会开空并推送。${EARLY_TIP}后面的等级是按现在的价格预估的。</p>
+  if (watch.length) (P.watch = `<h3>快要出开空信号</h3><p class="why">日线向下、4 小时反弹已经过热。下一根 4 小时 K 线 ${nextClose4h()}，RSI 回落到 ${SHORT_RSI_IN} 以下就会开空并推送。${EARLY_TIP}后面的等级是按现在的价格预估的。</p>
     <div class="wlist">${watch.map(x => { const g = gradeOf(x.v); return `<span><b>${x.b}</b> RSI ${x.v.rsi.toFixed(0)} · <b class="${g.c === "gc" ? "warnc" : ""}">${g.k}</b><i class="wv"><b>别提前跟</b>，${WATCH_VERDICT[g.key]}</i></span>`; }).join("")}</div>`);
   if (twatch.length) (P.twatch = `<h3>快要突破（日线趋势）</h3><p class="why">日线收盘（每天早上 8 点）站上这个价就开多并推送，盘中碰到不算。${TREND_EARLY_TIP}</p>
     <div class="wlist">${twatch.map(x => `<span><b>${x.b}</b> ${px(x.t.up)}（+${((x.t.up / x.p - 1) * 100).toFixed(1)}%）<i class="wv"><b>别提前买</b>，收盘站上再买</i></span>`).join("")}</div>`);
@@ -1302,7 +1305,7 @@ function overviewPage() {
   const M=done?marketState():null, date=new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
   const hero=!M?`<div class="ad-hero"><div class="ad-hero-head"><span class="ad-pill neutral">市场状态 · ${date}</span></div><h2>正在加载行情和已收盘 K 线（${S.progress.done}/${S.progress.total}），请勿依据未完成的信号下单</h2></div>`
     :`<div class="ad-hero mk-${M.kind}"><div class="ad-hero-head"><span class="ad-pill neutral">市场状态 · ${date}</span><span class="ad-small">不预测涨跌，只告诉你该怎么做 · 只用已收盘 K 线</span></div>
-      <h2>${M.head}</h2>${M.todo.map(x=>`<p class="mk-do">→ ${x}</p>`).join('')}${M.today?`<p class="ad-small">${M.today}下一根 4 小时 K 线 ${nextClose4h()}。</p>`:''}
+      <h2>${M.head}</h2>${M.todo.map(x=>`<p class="mk-do">→ ${x}</p>`).join('')}${M.today?`<p class="ad-small">${M.today}下一根 4 小时 K 线 ${nextClose4h()}。</p>`:''}${runsLine()}
       <div class="mk-facts">${M.facts.map(([k,v])=>`<div><label>${k}</label><b>${v}</b></div>`).join('')}</div></div>`;
   const act=(T.exit||'')+(T.go||'')+(T.hold||'');
   return `${headerHTML('个人量化决策工作台')}${banners()}${S.syncMsg?`<div class="banner">${esc(S.syncMsg)}</div>`:''}${hero}
@@ -1344,6 +1347,7 @@ function researchPage(){
       ['11-09','4 小时做空分批止盈','剩下一半 48% 在开仓价被扫，两段都更差','不采用'],
       ['11-09','日线做多等回踩再进','一半突破不回踩，错过的正是最强的行情','不采用'],
       ['11-09','主动卖出量暴增预警','原规则 0 次信号；卖出暴增后近两年反而更常反弹','不上线'],
+      ['11-14','做空规则放宽','去掉资金费率条件、转空放到 45 天、日线方向转快：多出来的单老数据都亏；反弹门槛 RSI 65 → 60：信号多约八成，两段总收益都更高','门槛改 60 已上线，其余不采用'],
       ['11-11','双轨曲线 + 热力图','做空、5 分钟～1 小时全部亏；只有 4 小时金叉 + 红柱做多两段都赚（PF 1.59 / 2.18）','已上线（与日线趋势各一半）'],
       ['11-05','做空信号等级 A/B/C','A 级两段都最好，9 年里 8 年 A 好于 B','已上线'],
       ['11-05','「快要开空」提前进','和等确认赚得差不多，但 24% 信号作废、平均亏 3.8%','不建议提前进'],
@@ -1516,12 +1520,12 @@ function settingsPage() {
     <button class="wide" data-diag="1" ${S.testing ? "disabled" : ""}>${S.testing ? "正在检测…" : "检测所有数据源"}</button>
     <h2>常见问题</h2>
     <div class="prose">
-      <p><b>首页的指令怎么来的？</b>三套系统一起跑（2026-11-11 起加了第 ③ 套）。① 4 小时做空（13 个主流币）：日线向下（收盘在 200 日均线下方、20 日均线低于 50 日均线）的币，等 4 小时反弹到过热（RSI 升到 65 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。② 日线趋势做多（38 个币）：日线收盘突破前 20 日最高价、并且在 200 日均线上方就开多；收盘跌破前 10 日最低价（或开仓时 2 倍波动的止损）就平。③ 4 小时双轨做多（13 个主流币）：4 小时红线 EMA5 比黄线 EMA34 高出 0.1 倍波动（金叉）、并且热力图有红柱（50 周期 RSI 高于 50）就开多；死叉就平，只做多。日线趋势和 4 小时双轨两套做多各用一半资金，建议仓位已经按一半算。</p>
+      <p><b>首页的指令怎么来的？</b>三套系统一起跑（2026-11-11 起加了第 ③ 套）。① 4 小时做空（13 个主流币）：日线向下（收盘在 200 日均线下方、20 日均线低于 50 日均线）的币，等 4 小时反弹到过热（RSI 升到 60 以上）再回落时开空；RSI 跌到 35 以下止盈，4 小时收盘站上 200 均线止损。② 日线趋势做多（38 个币）：日线收盘突破前 20 日最高价、并且在 200 日均线上方就开多；收盘跌破前 10 日最低价（或开仓时 2 倍波动的止损）就平。③ 4 小时双轨做多（13 个主流币）：4 小时红线 EMA5 比黄线 EMA34 高出 0.1 倍波动（金叉）、并且热力图有红柱（50 周期 RSI 高于 50）就开多；死叉就平，只做多。日线趋势和 4 小时双轨两套做多各用一半资金，建议仓位已经按一半算。</p>
       <p><b>为什么做空和做多用不同的方法？</b>用 13 个币、2018 年以来的数据检验：4 小时反弹做空在最近两三年赚钱（近 1000 天平均每次约 +1.1%），但 2018～2024 年平均每次约 -0.7%，全历史大约打平；日线突破做多全历史平均每次约 +14%，但 2025 年以来表现差。日线突破做空全历史是亏的，所以不做。两套系统一个做空、一个做多，通常一个好的时候另一个差，合在一起更稳。</p>
       <p><b>为什么是这 38 个币？</b>规则事先定好、不看回测成绩：币安 30 天日均成交额 500 万美元以上、2023 年 11 月前上市（至少 3 年历史）、有 USDT 永续合约，排除稳定币和黄金。回测里日线趋势做多在新加的 25 个币上同样有效（近 1000 天赚亏比 2.25），币越多越分散，近 1000 天年化从约 4% 提高到约 29%；4 小时做空在新币上明显变弱（赚亏比 1.16，原来 13 个币是 1.57），所以做空只留在原来 13 个币。其他币可以加到「自选观察」看走势，但不发信号。</p>
       <p><b>策略状态灯是什么？</b>看每套系统最近 30 笔模拟交易：赚的钱是亏的钱 1.1 倍以上为绿灯；0.8～1.1 倍黄灯；低于 0.8 倍红灯。它只是提示（2026-11-11 起不再自动减半 / 暂停）：11-05 回测里灯对下一笔没有预测力，按灯减仓反而少赚。灯的变化会推送。</p>
       <p><b>为什么止损离得太近时提示跳过？</b>4 小时做空的止损在 200 均线，有时离进场价不到 2%。回测里这种单胜率只有 18%，而按「每次最多亏 1%」算出来的仓位反而最大，是亏钱的主要来源。</p>
-      <p><b>信号等级 A / B / C 是什么？</b>A 最好，B 一般，C 最差。每个做空信号按两件事分档：止损距离（离 200 均线有没有 2%）和日线转空了多少天。A 级：止损 2% 以上、日线转空 30 天内，近 1000 天胜率 61%、平均每次 +2.7%，2018–2024 年胜率 54%、平均 +0.4%。B 级：止损 2% 以上、日线转空超过 30 天，近 1000 天胜率 46%、平均 +1.1%，2018–2024 年胜率 38%、平均 −1.8%。C 级：止损不到 2%，胜率不到 2 成，建议跳过。日线刚转空时，反弹之后继续下跌的概率更高；下跌拖得越久，越容易反弹失败。9 年里有 8 年 A 级好于 B 级。等级只是提示，开空、平空的规则没有变。</p>
+      <p><b>信号等级 A / B / C 是什么？</b>A 最好，B 一般，C 最差。每个做空信号按两件事分档：止损距离（离 200 均线有没有 2%）和日线转空了多少天。A 级：止损 2% 以上、日线转空 30 天内、资金费率不为负，近 1000 天胜率 60%、平均每次 +2.2%，2018–2024 年胜率 64%、平均 +1.7%（2026-11-14 把反弹门槛从 RSI 65 放宽到 60 之后的数字）。B 级：止损 2% 以上、日线转空超过 30 天，近 1000 天胜率 46%、平均 +1.1%，2018–2024 年胜率 38%、平均 −1.8%。C 级：止损不到 2%，胜率不到 2 成，建议跳过。日线刚转空时，反弹之后继续下跌的概率更高；下跌拖得越久，越容易反弹失败。9 年里有 8 年 A 级好于 B 级。等级只是提示，开空、平空的规则没有变。</p>
       <p><b>资金费率为什么会让 A 级降为 B 级？</b>2026 年 11 月回测（13 个币、2019 年 9 月起，有资金费率数据的交易）：开空时资金费率为负（空头在付钱给多头，说明做空的人已经很多），A 级单的表现只有 B 级水平——近 1000 天胜率 50%（资金费率为正时 62%），2018–2024 年胜率 44%（为正时 55%）。B 级单不受影响，所以只把 A 级降一级。资金费率取最近 3 次结算的平均，依次从币安合约、Gate、OKX 取，取不到就按原来的等级。</p>
       <p><b>资金费率套利是什么？</b>一半本金买现货，另一半做保证金开同样数量的空单（1 倍），涨跌互相抵消，只赚空单收到的资金费。牛市过热时资金费率高，2021 年 BTC 全年折算约 15%；2023 年以后只有 2%～6%，今年 1%～2%，扣掉手续费不划算，小币还经常是负的（倒贴钱）。所以只在 BTC 或 ETH 过去 7 天折算年化到 10% 以上时推送提醒，跌回 5% 以下提醒结束。风险：两边价格偶尔会短暂偏离，极端行情时合约保证金要留够，交易所本身也有风险。</p>
       <p><b>为什么价格已经大跌了，4 小时信号还没变？</b>4 小时做空只在 4 小时 K 线收盘后才判断（马尼拉 / 北京时间 0、4、8、12、16、20 点），盘中跌多少都不算，这样和回测完全一致、信号不会出了又消失。日线方向更慢，要等每天早上 8 点日线收盘。网页开着的话，收盘后大约 1 分钟就会更新；推送要等 GitHub 的定时任务，它经常晚 1～2 小时，偶尔更久。</p>
@@ -1805,6 +1809,16 @@ async function mountChart(b) {
   if (fresh) { const fit = () => CH.chart.timeScale().setVisibleLogicalRange({ from: cand.length - (tf === "4h" ? 90 : 120), to: cand.length + 3 }); fit(); requestAnimationFrame(() => requestAnimationFrame(fit)); setTimeout(fit, 300); }
 }
 // ===== 推送消息记录 =====
+// 推送程序运行状态（2026-11-14）：读 state.json 里的运行记录。GitHub 定时任务不保证准时，这里让你看得到它多久没跑
+async function loadRuns() {
+  try { const st = await getJSON("state.json?t=" + Date.now(), 8000); if (st && Array.isArray(st.runs)) { S.runs = st.runs; render(); } } catch (e) {}
+}
+function runsLine() {
+  if (!S.runs || !S.runs.length) return "";
+  const now = Date.now(), last = S.runs[S.runs.length - 1], h = (now - last) / 3600000, r24 = S.runs.filter(x => now - x < 86400000);
+  const txt = h < 1 ? `${Math.max(1, Math.round(h * 60))} 分钟前` : `${h.toFixed(1)} 小时前`;
+  return `<p class="ad-small"${h > 8 ? ' style="color:var(--red)"' : ""}>推送程序上次运行：${txt}；过去 24 小时跑了 ${r24.length} 次。${h > 8 ? "已经超过 8 小时没跑，手机推送会晚到，请以本页为准。" : "GitHub 定时任务不保证准时，手机推送可能晚几小时，信号以本页为准。"}</p>`;
+}
 async function loadAlerts() {
   try { const a = await getJSON("alerts.json?t=" + Date.now(), 8000); if (Array.isArray(a)) { S.alerts = a; S.alertsErr = null; } }
   catch (e) { if (!S.alerts) S.alertsErr = e.status === 404 ? "还没有推送记录。" : "消息记录暂时读不到，稍后会自动重试。"; }
@@ -1816,7 +1830,7 @@ function updateBadge() {
   const n = S.tab === "msgs" ? 0 : unseen();
   btn.innerHTML = `◉ <span>消息中心</span>${n ? `<span class="badge">${n > 99 ? "99+" : n}</span>` : ""}`;
 }
-const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"], carry: ["套利", "dnone"] };
+const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"], carry: ["套利", "dnone"], watch: ["只观察", "dnone"], digest: ["每日状态", "dnone"], ops: ["程序", "loss"], guard: ["持仓守护", "kfollow"], qopen: ["双轨开多", "win"], qclose: ["双轨平多", "loss"] };
 function msgsPage() {
   const list = (S.alerts || []).slice().sort((x, y) => y.t - x.t), seen = S.seenPrev ?? S.seenAt;
   let day = "", html = "";
@@ -1987,6 +2001,7 @@ async function boot() {
     await new Promise(r => setTimeout(r, 30000));
   }
   loadAlerts(); setInterval(loadAlerts, 120000);
+  loadRuns(); setInterval(loadRuns, 600000);
   loadFunding(); setInterval(loadFunding, 30 * 60000);
   await loadAllHistory();
   lastCandles = Date.now();
