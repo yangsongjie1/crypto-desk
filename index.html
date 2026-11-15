@@ -312,6 +312,7 @@ nav button[aria-current="page"] {color:#e5f2ff;background:#1c324c;box-shadow:ins
 .lab-verdict{font-size:16px;font-weight:700;margin:6px 0 8px}
 .lab-go{border-left-color:var(--down)}.lab-go .lab-verdict{color:var(--down)}.lab-soon{border-left-color:#C98A0C}.lab-soon .lab-verdict{color:#C98A0C}.lab-hold{border-left-color:var(--accent)}.lab-close{border-left-color:var(--up)}.lab-wait .lab-verdict,.lab-no .lab-verdict{color:var(--muted)}.lab-no{opacity:.8}
 .lab-gap{font-size:13px;line-height:1.7}.lab-gap span{display:inline-block;min-width:56px;color:var(--muted)}.lab-hist{font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.5}
+.lab-time{font-size:13px;line-height:1.6;margin:0 0 8px;padding:8px 10px;background:var(--sunk);border-radius:8px}.lab-time>div+div{margin-top:6px}.lab-time span{display:inline-block;min-width:64px;color:var(--muted)}.lab-time b.ok{color:var(--accent)}.lab-time b.no{color:#C98A0C}.lab-time i{display:block;font-style:normal;font-size:12px;color:var(--muted)}.lab-row1 .chip{font-size:11px}
 .lab-switch{margin:0 0 14px}.lab-switch>div{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}.lab-switch span{min-width:34px;color:var(--muted);font-size:13px}.lab-switch button{border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:14px;cursor:pointer}.lab-switch button.on{background:var(--accent);border-color:var(--accent);color:#fff}.lab-tfw{font-size:13px;line-height:1.6;margin:4px 0 0}.lab-tfw b.ga{color:var(--accent)}.lab-tfw b.gb{color:var(--ink)}.lab-tfw b.gc{color:#C98A0C}.lab-cmpg{margin-top:6px}.lab-cmpg i{font-style:normal;font-size:12px;color:var(--muted)}.lab-cmpg b.ga{color:var(--accent);font-size:12px}.lab-cmpg b.gc{color:#C98A0C;font-size:12px}
 .lab-cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.lab-cmpc{background:var(--sunk);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.8}.lab-cmpc b{font-size:15px}.lab-cmpc span:first-child{display:inline-block;min-width:76px;color:var(--muted)}
 </style>
@@ -1006,6 +1007,23 @@ function rsiRisePct(c, level, n = 14) {
 }
 const labNext = tf => { const ms = LAB_TFS[tf], n = Date.now(), t = Math.ceil(n / ms) * ms, m = Math.round((t - n) / 60000); return `${md(t).slice(-5)}（还有 ${m >= 60 ? `${Math.floor(m / 60)} 小时 ` : ""}${m % 60} 分钟）`; };
 const barsDays = (bars, tf) => (bars * LAB_TFS[tf] / 86400000).toFixed(1);
+// 跟进窗口（2026-11-15 回测，13 个主流币 + 25 个新币 4 小时，只算晚进时仓位还没平的单）：
+//   双轨做空：价格比信号价已跌 >5% 再进，两段平均都是亏的（−0.9% / −5.1%）；已跌 2–5% 近 1000 天只剩 +0.15% → 窗口 = 2 天内且已跌 <2%
+//   双轨做多：涨得越多跟进越好（已涨 >5% 平均 +3.4% / +5.8%）；跌回信号价下方新币平均 −0.1% → 窗口 = 2 天内且价格不低于信号价
+//   现行反弹做空：沿用 11-05 结论，2 天内可跟
+function labTiming(line, startTs, sigPrice, price, tf) {
+  if (!(startTs > 0) || !(sigPrice > 0)) return null;
+  const hrs = Math.max(0, (Date.now() - startTs) / 3600000), mv = line === "QL" ? price / sigPrice - 1 : 1 - price / sigPrice;   // mv>0 = 已朝有利方向走
+  const ago = hrs < 1 ? "不到 1 小时前" : hrs < 48 ? `${Math.round(hrs)} 小时前` : `${(hrs / 24).toFixed(1)} 天前`;
+  const mvTxt = line === "QL" ? `比信号价 ${pct(mv, 1)}` : `比信号价${mv >= 0 ? "跌了" : "涨了"} ${Math.abs(mv * 100).toFixed(1)}%`;
+  let ok, why;
+  if (hrs > 48) { ok = false; why = "超过 2 天，别追了"; }
+  else if (line === "QS" && mv >= 0.05) { ok = false; why = "已经跌了 5% 以上，历史上这时追进去平均是亏的"; }
+  else if (line === "QS" && mv >= 0.02) { ok = false; why = "已经跌了 2% 以上，历史上剩下的空间很小（平均 +0.15%）"; }
+  else if (line === "QL" && mv < 0) { ok = false; why = "已跌回信号价下方，历史上这时跟进基本不赚，等下一次"; }
+  else { ok = true; why = hrs < 4 ? "刚出不久，可以进" : line === "QL" ? "还在窗口里：2 天内、价格没跌回信号价下方" : line === "QS" ? "还在窗口里：2 天内、价格离信号价不到 2%" : "还在窗口里：2 天内"; }
+  return { hrs, ago, mv, mvTxt, ok, why, left: Math.max(0, 48 - hrs) };
+}
 function labVerdict(b, tf) {
   const C = labCalc(b, tf); if (!C) return null;
   const { v, sw, q, k } = C, price = priceOf(b) ?? v.price, g = qxsGrade(v), grp = labGroup(b);
@@ -1026,19 +1044,28 @@ function labVerdict(b, tf) {
   const gaps = [okS ? gapS : null, okQ ? gapQ : null].filter(x => x != null), gapAll = [gapS, gapQ].filter(x => x != null);
   const gap = gaps.length ? Math.min(...gaps) : gapAll.length ? Math.min(...gapAll) : null;
   const swg = sw.action !== "观望" ? gradeOf(sw) : null;
+  const barMs = LAB_TFS[tf], lastQS = [...v.ev].reverse().find(e => e.act === "开空");
+  const tQS = v.action === "持空中" || v.action === "开空" ? labTiming("QS", lastQS ? lastQS.t : 0, lastQS ? lastQS.price : 0, price, tf) : null;
+  const tS = sw.action === "持空中" ? labTiming("S", k.ts[k.ts.length - 1] + barMs - sw.sinceBars * barMs, sw.entry, price, tf) : sw.action === "开空" ? labTiming("S", k.ts[k.ts.length - 1] + barMs, price, price, tf) : null;
+  const tQL = q.action === "持多中" && q.open ? labTiming("QL", q.open.t0, q.open.sig || q.open.p0, price, tf) : q.action === "开多" ? labTiming("QL", k.ts[k.ts.length - 1] + barMs, price, price, tf) : null;
   const qOpen = v.action === "开空", sOpen = sw.action === "开空", lOpen = q.action === "开多";
   const goS = sOpen && swg && swg.key === "A" && okS, goQ = qOpen && g.key === "A" && okQ, goL = lOpen && okL;
   let tone, title, rank, which = "";
   if (goS || goQ || goL) { tone = "go"; which = [goS && "现行做空", goQ && "双轨做空", goL && "双轨做多"].filter(Boolean).join(" + "); title = goL && !goS && !goQ ? "现在可以开多" : "现在可以开空"; rank = 0; }
   else if (sOpen || qOpen || lOpen) { tone = "no"; const why = (sOpen || qOpen) && !(okS || okQ) || lOpen && !okL ? "这个周期回测不赚" : (qOpen ? g : swg).short; title = `出了${lOpen ? "开多" : "开空"}信号，但不开（${why}）`; rank = 4; }
   else if ((v.action === "平空" && okQ) || (sw.action === "平空" && okS) || (q.action === "平多" && okL)) { tone = "close"; title = `拿着的话现在${q.action === "平多" && okL ? "平多" : "平空"}`; rank = 1; }
-  else if ((v.action === "持空中" && okQ) || (sw.action === "持空中" && okS) || (q.action === "持多中" && okL)) { tone = "hold"; title = q.action === "持多中" && okL && !(okS && sw.action === "持空中") && !(okQ && v.action === "持空中") ? "模型持多中：拿着的继续拿，没开的别追" : "模型持空中：拿着的继续拿，没开的别追"; rank = 2; }
+  else if ((v.action === "持空中" && okQ) || (sw.action === "持空中" && okS) || (q.action === "持多中" && okL)) {
+    const cand = [[sw.action === "持空中" && okS && swg && swg.key === "A", tS, "现行做空"], [v.action === "持空中" && okQ && g.key === "A", tQS, "双轨做空"], [q.action === "持多中" && okL, tQL, "双轨做多"]].filter(x => x[0] && x[1]);
+    const fol = cand.find(x => x[1].ok);
+    if (fol) { tone = "follow"; which = fol[2]; title = `${fol[2]}还能跟：信号 ${fol[1].ago}，${fol[1].mvTxt}`; rank = 0.5; }
+    else { tone = "hold"; const c0 = cand[0]; title = c0 ? `${c0[2]}持仓中，没开的别追了（${c0[1].why}）` : "模型持仓中（不是 A 级），没开的别追"; rank = 2; }
+  }
   else if (v.dir > 0) { tone = "no"; title = q.phase === "bullwait" ? "日线向上，等双轨金叉做多" : "日线向上，不做空"; rank = 5; }
   else if (v.dir === 0) { tone = "no"; title = "日线方向不明，不做"; rank = 6; }
   else if (gap === 0) { tone = "soon"; title = g.key === "A" && (okS || okQ) ? "快出信号了，盯下一根收盘" : `快出信号，但出了也不开（${!(okS || okQ) ? "这个周期回测不赚" : g.short}）`; rank = g.key === "A" && (okS || okQ) ? 1.5 : 3.5; }
   else { tone = "wait"; title = gap != null ? `不做，等反弹 ${pct(gap, 1)}` : "不做，等反弹"; rank = 3 + (g.key === "A" ? 0 : 0.5) + (badCoin ? 0.4 : 0) + (gap || 0); }
   if (badCoin && (tone === "go" || tone === "soon")) title += "（这个币历史上做空不赚，减半或跳过）";
-  return { b, v, sw, q, g, price, tone, title, rank, gap, gapQtxt, gapStxt, hS, hQ, hL, okS, okQ, okL, which, badCoin, grp, chg: S.coins[b].change, k };
+  return { b, v, sw, q, g, price, tone, title, rank, gap, gapQtxt, gapStxt, hS, hQ, hL, okS, okQ, okL, which, badCoin, grp, chg: S.coins[b].change, k, tQS, tS, tQL };
 }
 function qxLabPage() {
   const tf = S.labTf, coins = labCoins(), capital = S.prefs.capital || 1000, tw = labTfWord(tf);
@@ -1050,29 +1077,37 @@ function qxLabPage() {
   const missing = coins.length - V.length;
   if (V.length < Math.min(5, coins.length)) { labEnsure(); return `${headerHTML('双轨实验线')}${sw}<section class="ad-panel"><div class="ad-placeholder">正在拉取 ${tf.replace("h", " 小时")} K 线：${V.length} / ${coins.length} 个币…</div></section>`; }
   if (missing) labEnsure();
+  const fol = V.filter(x => x.tone === "follow");
   const go = V.filter(x => x.tone === "go"), soon = V.filter(x => x.tone === "soon" && x.g.key === "A" && (x.okS || x.okQ)), hold = V.filter(x => x.tone === "hold"), close = V.filter(x => x.tone === "close");
   const down = V.filter(x => x.v.dir < 0).length, upN = V.filter(x => x.v.dir > 0).length;
   const nearest = V.filter(x => x.tone === "wait" && x.gap != null && x.g.key === "A" && (x.okS || x.okQ) && !x.badCoin).sort((a, b) => a.gap - b.gap).slice(0, 3);
   const sc = x => Math.max(x.hS && x.okS ? x.hS[2] : -9, x.hQ && x.okQ ? x.hQ[2] : -9);
   const best = V.filter(x => !x.badCoin && x.v.dir < 0 && sc(x) > 0).sort((a, b) => sc(b) - sc(a)).slice(0, 5);
   const bad = V.filter(x => x.badCoin);
-  const headline = go.length ? `现在可以开：${go.map(x => `<b>${x.b}</b>`).join("、")}` : close.length ? `${close.map(x => x.b).join("、")} 该平了` : soon.length ? `现在不开新单；${soon.map(x => `<b>${x.b}</b>`).join("、")} 快出信号了` : tw.cls === "gc" ? "这个周期回测不赚，只看走势，不下单" : "现在不开新单，等反弹";
+  const headline = go.length ? `现在可以开：${go.map(x => `<b>${x.b}</b>`).join("、")}` : fol.length ? `还能跟进：${fol.map(x => `<b>${x.b}</b>（${x.which}）`).join("、")}` : close.length ? `${close.map(x => x.b).join("、")} 该平了` : soon.length ? `现在不开新单；${soon.map(x => `<b>${x.b}</b>`).join("、")} 快出信号了` : tw.cls === "gc" ? "这个周期回测不赚，只看走势，不下单" : "现在不开新单，等反弹";
   const hero = `<section class="ad-panel lab-hero"><div class="lab-big">${headline}</div>
-    <div class="lab-facts"><div><span>正在看</span><b>${tf.replace("h", " 小时")} K 线 · ${coins.length} 个币</b><i>每根收盘判断一次，下一根 ${labNext(tf)}。${tf === "4h" ? "信号会推送到手机。" : "这个周期只在页面显示，不推送。"}</i></div>
+    <div class="lab-facts"><div><span>正在看</span><b>${tf.replace("h", " 小时")} K 线 · ${coins.length} 个币</b><i>每根收盘判断一次，下一根 ${labNext(tf)}。${tf === "4h" ? "推送：主流 13 个三条线都推；新币只推双轨做多（新币做空回测不稳）。卡片上标了「会推送 / 只在页面」。" : "这个周期只在页面显示，不推送。"}</i></div>
     <div><span>方向</span><b>${down >= V.length * 0.75 ? "只做空" : upN >= V.length * 0.75 ? "以做多为主" : "多空都有"}</b><i>${down} / ${V.length} 个币日线向下${down >= V.length * 0.75 ? "，不抄底、不做多" : ""}</i></div>
     <div><span>最接近信号</span><b>${nearest.length ? nearest.map(x => `${x.b} ${pct(x.gap, 1)}`).join(" · ") : soon.length ? soon.map(x => x.b).join("、") : "—"}</b><i>还要反弹这么多才可能出能做的做空信号</i></div>
     <div><span>出信号时优先做</span><b>${best.map(x => x.b).join("、") || "—"}</b><i>这个周期上，这几个币近 1000 天做空赚得最多。${bad.length ? `<b>${bad.map(x => x.b).join("、")}</b> 两种做空历史上都不赚，出了也建议跳过。` : ""}每个币只有几笔到几十笔，参考用。</i></div>
+    <div><span>信号出来多久还能跟</span><b>双轨做空 2 天内且跌幅 <2% · 双轨做多 2 天内且没跌回信号价</b><i>回测：双轨做空跌了 5% 以上再追，平均是亏的；双轨做多涨得越多跟进反而越好，但跌回信号价下方就不赚了。现行做空 2 天内。</i></div>
     ${hold.length ? `<div><span>模型持仓中</span><b>${hold.map(x => x.b).join("、")}</b><i>拿着的按止损止盈走；没开的别追</i></div>` : ""}</div>
     ${down >= V.length * 0.75 && !go.length ? `<p class="why"><b>为什么都在跌却不叫你空？</b>"红线在黄线下"只说明在跌，不是进场点。追着跌势空，历史上每个周期都亏（反弹一来就扫止损）。要等它反弹一下再掉头，那时空进去止损近、空间大。</p>` : ""}</section>`;
-  const toneC = { go: "lab-go", close: "lab-close", hold: "lab-hold", soon: "lab-soon", wait: "lab-wait", no: "lab-no" };
+  const toneC = { go: "lab-go", follow: "lab-go", close: "lab-close", hold: "lab-hold", soon: "lab-soon", wait: "lab-wait", no: "lab-no" };
   const hs = (h, ok) => h && h[0] ? `${h[0]} 次 · 胜率 ${h[1]}% · 平均 ${sgn(h[2])}${ok ? "" : "（这个周期整体不赚）"}` : "—";
+  const timeRow = x => {
+    const rows = [["现行做空", x.tS, x.sw.action === "持空中" || x.sw.action === "开空"], ["双轨做空", x.tQS, x.v.action === "持空中" || x.v.action === "开空"], ["双轨做多", x.tQL, x.q.action === "持多中" || x.q.action === "开多"]].filter(r => r[1] && r[2]);
+    if (!rows.length) return "";
+    return `<div class="lab-time">${rows.map(([nm, t]) => `<div><span>${nm}</span>信号 <b>${t.ago}</b> · ${t.mvTxt} · <b class="${t.ok ? "ok" : "no"}">${t.ok ? `可以跟（还剩约 ${Math.round(t.left)} 小时）` : "别追了"}</b><i>${t.why}</i></div>`).join("")}</div>`;
+  };
+  const pushTag = x => { const willPush = tf === "4h" && (x.grp === "老13" || x.okL); return `<span class="chip ${willPush ? "open" : "dnone"}">${willPush ? (x.grp === "老13" ? "会推送" : "只推做多") : "只在页面"}</span>`; };
   const card = x => {
     const { b, v, g, price } = x, tp = rsiTarget(x.k.c, 35), z = sizePct(price, v.stop, S.prefs.risk || 1, S.prefs.maxAlloc || 40);
-    const plan = (x.tone === "go" || x.tone === "soon") && v.dir < 0 ? `<div class="lv"><span>进场</span><b>${x.tone === "go" ? px(price) : "等信号"}</b><i>${x.tone === "go" ? `${x.which}；下一根开盘附近` : "收盘出信号后再进，不提前"}</i>
+    const plan = (x.tone === "go" || x.tone === "soon" || (x.tone === "follow" && x.which !== "双轨做多")) && v.dir < 0 ? `<div class="lv"><span>进场</span><b>${x.tone === "soon" ? "等信号" : px(price)}</b><i>${x.tone === "go" ? `${x.which}；下一根开盘附近` : x.tone === "follow" ? `${x.which}跟进，按现价` : "收盘出信号后再进，不提前"}</i>
       <span>止盈</span><b>${tp ? px(tp) : "—"}</b><i>RSI 跌破 35</i><span>止损</span><b>${px(v.stop)}</b><i>收盘站上 EMA200（${pctTo(v.stop, price)}）</i>
-      ${z ? `<span>仓位</span><b>${z.pct.toFixed(0)}% ≈ ${Math.round(capital * z.pct / 100)} U</b><i>每笔最多亏 1%，杠杆 ≤2 倍</i>` : ""}</div>` : x.tone === "go" ? `<p>双轨金叉 + 热力红柱，下一根开盘买；双轨死叉就卖（黄线 ${px(x.q.l2)}）。</p>` : "";
-    return `<div class="lab-coin ${toneC[x.tone]}"><div class="lab-row1"><button data-coin="${b}" class="linkish lab-sym">${b}</button>${x.grp === "新25" ? `<span class="chip dnone">新币</span>` : ""}<span class="num">${px(price)}</span><span class="num ${dir(x.chg)}">${pct(x.chg, 1)}</span></div>
-      <div class="lab-verdict">${x.title}</div>
+      ${z ? `<span>仓位</span><b>${z.pct.toFixed(0)}% ≈ ${Math.round(capital * z.pct / 100)} U</b><i>每笔最多亏 1%，杠杆 ≤2 倍</i>` : ""}</div>` : x.tone === "go" || (x.tone === "follow" && x.which === "双轨做多") ? `<p>${x.tone === "go" ? "双轨金叉 + 热力红柱，下一根开盘买" : "按现价跟进"}；双轨死叉就卖（黄线 ${px(x.q.l2)}，${pctTo(x.q.l2, price)}）。不设固定止损。</p>` : "";
+    return `<div class="lab-coin ${toneC[x.tone]}"><div class="lab-row1"><button data-coin="${b}" class="linkish lab-sym">${b}</button>${x.grp === "新25" ? `<span class="chip dnone">新币</span>` : ""}${pushTag(x)}<span class="num">${px(price)}</span><span class="num ${dir(x.chg)}">${pct(x.chg, 1)}</span></div>
+      <div class="lab-verdict">${x.title}</div>${timeRow(x)}
       ${v.dir < 0 && ["wait", "soon", "no"].includes(x.tone) ? `<div class="lab-gap">${x.gapStxt ? `<div><span>现行</span>${x.gapStxt}</div>` : ""}${x.gapQtxt ? `<div><span>双轨</span>${x.gapQtxt}</div>` : ""}<div><span>出信号时</span><b class="${g.c}">${g.k}</b> · ${g.key === "A" ? (x.okS || x.okQ ? "可以做" : "这个周期回测不赚，不做") : `不开（${g.short}）`}</div></div>` : ""}
       ${plan}<p class="lab-hist">这个币 ${tf.replace("h", " 小时")} 近 1000 天：现行做空 ${hs(x.hS, x.okS)}；双轨做空 ${hs(x.hQ, x.okQ)}；双轨做多 ${hs(x.hL, x.okL)}${x.badCoin ? " · <b>做空不赚的币</b>" : ""}</p></div>`;
   };
@@ -1888,16 +1923,16 @@ function qxCalc(k) {
   const u50 = sma1(up, 50), r50 = sma1(rng, 50), u40 = sma1(up, 40), r40 = sma1(rng, 40);
   const clip = x => Math.min(20, Math.max(0, x));
   const mmAt = i => clip(1.5 * ((r50[i] > 0 ? u50[i] / r50[i] * 100 : 50) - 50)), hotAt = i => clip(0.7 * ((r40[i] > 0 ? u40[i] / r40[i] * 100 : 50) - 30));
-  const sb = new Uint8Array(n), ss = new Uint8Array(n), st = new Int8Array(n); let lb = -1e9, ls = -1e9, s = 0;
+  const sb = new Uint8Array(n), ss = new Uint8Array(n), sr = new Uint8Array(n), st = new Int8Array(n); let lb = -1e9, ls = -1e9, s = 0;
   for (let i = 1; i < n; i++) {
     const rb = d[i] > buf[i] && d[i - 1] <= buf[i - 1], rs = -buf[i] > d[i] && -buf[i - 1] <= d[i - 1];
     if (rb) { sb[i] = i - lb > 21 ? 1 : 0; lb = i; }
-    if (rs) { ss[i] = i - ls > 21 ? 1 : 0; ls = i; }
+    if (rs) { ss[i] = i - ls > 21 ? 1 : 0; ls = i; sr[i] = 1; }
     if (sb[i]) s = 1; else if (ss[i]) s = -1; st[i] = s;
   }
   const trades = [], ev = []; let pos = 0, ent = 0, eI = 0, sigP = 0, exiting = false, fresh = null;
   for (let i = 1; i < n; i++) {
-    if (pos && ss[i]) {
+    if (pos && sr[i]) {   // 卖出：任何一次死叉都卖，不看冷却（2026-11-15 修正，与推送程序和回测一致）
       ev.push({ t: ts[i] + H4, act: "平多", price: c[i] });
       if (i + 1 < n) { const x = o[i + 1] * (1 - SLIP); trades.push({ side: 1, t0: ts[eI], t1: ts[i + 1], p0: ent, p1: x, r: x / ent - 1 - 2 * FEE, bars: i + 1 - eI, why: "dead" }); pos = 0; }
       else exiting = true;

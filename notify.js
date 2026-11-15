@@ -708,7 +708,7 @@ async function push(title, body, important) {
         const A = isAGrade(e.dist, e.age, f), gradeTxt = !(e.dist >= 0.02) ? "C 级（止损距离不到 2%）" : !(e.age <= 30) ? "B 级（日线转空超过 30 天）" : (f && f.now <= 0) ? "B 级（资金费率为负，空头在付钱）" : "A 级";
         const moved = 1 - p / e.price;
         events.push({ coin: b, kind: "qsopen", price: p, sigPrice: e.price, sig: e.t, important: A, title: A ? `${b} 开空 · 双轨实验线${late}` : `${b} 双轨开空信号 · ${gradeTxt.slice(0, 3)}不开`,
-          body: `${A ? "" : `只观察不开：${gradeTxt}。双轨做空的优势几乎全靠 A 级条件，不是 A 级历史上不赚钱。\n`}${entryLine(p, `4小时收盘 ${fmt(e.price)} 反弹碰过黄线后跌回红线下方`, late ? `，${moved >= 0 ? "已跌" : "已涨"} ${Math.abs(moved * 100).toFixed(1)}%` : "")}\n止损：${fmt(qs.stop)}（${pctS(qs.stop / p - 1)}）= 4小时 EMA200，4小时收盘站上就平\n止盈参考：4小时收盘 RSI 跌破 35 时平仓（看「双轨平空」推送）\n${A ? sizeLine("short", p, qs.stop, "杠杆≤2倍", null, b) : ""}\n等级：${gradeTxt}（止损距离 ${(e.dist * 100).toFixed(1)}%，日线转空 ${e.age < 1 ? "不到 1 天" : Math.round(e.age) + " 天"}，${f ? `资金费率 ${(f.now * 100).toFixed(4)}%` : "资金费率取不到"}）\n历史（13 个币，A 级，2018 年起）：胜率 66%，平均每次 +0.5%～+0.6%，持仓中位 2～3 天。这是实验线，和现行反弹做空并排比，网页「双轨实验」页看对比。` });
+          body: `${A ? "" : `只观察不开：${gradeTxt}。双轨做空的优势几乎全靠 A 级条件，不是 A 级历史上不赚钱。\n`}${entryLine(p, `4小时收盘 ${fmt(e.price)} 反弹碰过黄线后跌回红线下方`, late ? `，${moved >= 0 ? "已跌" : "已涨"} ${Math.abs(moved * 100).toFixed(1)}%` : "")}\n止损：${fmt(qs.stop)}（${pctS(qs.stop / p - 1)}）= 4小时 EMA200，4小时收盘站上就平\n止盈参考：4小时收盘 RSI 跌破 35 时平仓（看「双轨平空」推送）\n${A ? sizeLine("short", p, qs.stop, "杠杆≤2倍", null, b) : ""}\n等级：${gradeTxt}（止损距离 ${(e.dist * 100).toFixed(1)}%，日线转空 ${e.age < 1 ? "不到 1 天" : Math.round(e.age) + " 天"}，${f ? `资金费率 ${(f.now * 100).toFixed(4)}%` : "资金费率取不到"}）\n跟进窗口：信号后 2 天内、价格比信号价跌了不到 2% 还能跟；已跌 2%～5% 别追（历史上平均只剩 +0.15%），跌超 5% 再追平均是亏的。\n历史（13 个币，A 级，2018 年起）：胜率 66%，平均每次 +0.5%～+0.6%，持仓中位 2～3 天。这是实验线，和现行反弹做空并排比，网页「双轨实验」页看对比。` });
       } else {
         const opened = [...qs.ev.slice(0, idx)].reverse().find(x => x.act === "开空");
         if (opened && !sentBefore.has(`${b}|qxs|${opened.t}|开空`) && NOW4 - opened.t < 86400000) return;
@@ -730,7 +730,7 @@ async function push(title, body, important) {
         if (qe.ev.slice(idx + 1).some(x => x.act === "平多")) return;
         const moved = p / e.price - 1;
         events.push({ coin: b, kind: "qopen", price: p, sigPrice: e.price, sig: e.t, important: true, title: `${b} 开多 · 双轨实验线（新币）${late}`,
-          body: `${entryLine(p, `4小时收盘 ${fmt(e.price)} 双轨金叉，热力红柱 ${mmFmt(e.mm)}`, late ? `，${moved >= 0 ? "已涨" : "已跌"} ${Math.abs(moved * 100).toFixed(1)}%，1 天内仍可跟进` : "")}\n离场：4小时双轨死叉就卖，不设固定止损价。黄线现在 ${fmt(qe.l2)}（${pctS(qe.l2 / p - 1)}）\n${sizeLine("qx", p, qe.l2, "现货或 1 倍", R[b].t ? R[b].t.vol20 : null)}\n这是扩展的新币（不在主流 13 个里）。回测新 25 个币：近 1000 天平均每笔 +0.9%、赚亏比 1.24，更早 +2.4%、1.60；胜率约 1/4，靠少数大波段赚钱。比主流币弱，仓位可以再小一点。` });
+          body: `${entryLine(p, `4小时收盘 ${fmt(e.price)} 双轨金叉，热力红柱 ${mmFmt(e.mm)}`, late ? `，${moved >= 0 ? "已涨" : "已跌"} ${Math.abs(moved * 100).toFixed(1)}%，1 天内仍可跟进` : "")}\n离场：4小时双轨死叉就卖，不设固定止损价。黄线现在 ${fmt(qe.l2)}（${pctS(qe.l2 / p - 1)}）\n${sizeLine("qx", p, qe.l2, "现货或 1 倍", R[b].t ? R[b].t.vol20 : null)}\n跟进窗口：信号后 2 天内、价格没跌回信号价 ${fmt(e.price)} 下方都可以跟（历史上晚进、甚至涨了一段再进都不差）；跌回信号价下方就等下一次。\n这是扩展的新币（不在主流 13 个里）。回测新 25 个币：近 1000 天平均每笔 +0.9%、赚亏比 1.24，更早 +2.4%、1.60；胜率约 1/4，靠少数大波段赚钱。比主流币弱，仓位可以再小一点。` });
       } else {
         const opened = [...qe.ev.slice(0, idx)].reverse().find(x => x.act === "开多");
         if (opened && !sentBefore.has(`${b}|qxe|${opened.t}|开多`) && NOW5 - opened.t < 86400000) return;
