@@ -167,7 +167,7 @@ const PAGE = "https://yangsongjie1.github.io/crypto-desk/";
 const SHORT_SET = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "LTC", "DOT", "TRX", "BCH"], QUOTE = "USDT";
 const SYMBOLS = [...SHORT_SET, "ZEC", "NEAR", "SUI", "PEPE", "WLD", "UNI", "QNT", "AAVE", "FET", "LIT", "INJ", "ARB", "FIL", "HBAR", "TIA", "XLM", "SAND", "APT", "GTC", "RLC", "ICP", "OP", "DASH", "OGN", "SEI"];
 const HISTORY = { "1d": 1000, "4h": 2000 };
-const STEP = { "1d": 86400000, "4h": 14400000 };
+const STEP = { "1d": 86400000, "4h": 14400000, "1h": 3600000 };
 const fmt = p => p >= 1000 ? p.toFixed(2) : p >= 10 ? p.toFixed(3) : p >= 1 ? p.toFixed(4) : p.toFixed(5);
 const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
 async function getJSON(url) {
@@ -188,7 +188,7 @@ async function binanceLike(host, b, tf, total) {
 }
 const SOURCES = [
   { name: "Bybit", async klines(b, tf, total) {
-      const iv = { "1d": "D", "4h": "240" }[tf], out = new Map(); let end = Date.now();
+      const iv = { "1d": "D", "4h": "240", "1h": "60" }[tf], out = new Map(); let end = Date.now();
       for (let p = 0; p < 8 && out.size < total; p++) {
         const j = await getJSON(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${b}${QUOTE}&interval=${iv}&end=${end}&limit=1000`);
         if (j.retCode !== 0) throw new Error(j.retMsg); const list = j.result.list; if (!list.length) break;
@@ -198,7 +198,7 @@ const SOURCES = [
       return rows(out, total);
     } },
   { name: "OKX", async klines(b, tf, total) {
-      const bar = { "1d": "1Dutc", "4h": "4H" }[tf], out = new Map(); let after = "";
+      const bar = { "1d": "1Dutc", "4h": "4H", "1h": "1H" }[tf], out = new Map(); let after = "";
       for (let p = 0; p < Math.ceil(total / 100) + 2 && out.size < total; p++) {
         const j = await getJSON(`https://www.okx.com/api/v5/market/history-candles?instId=${b}-${QUOTE}&bar=${bar}&limit=100${after ? "&after=" + after : ""}`);
         if (j.code !== "0") throw new Error(j.msg); if (!j.data.length) break;
@@ -825,11 +825,60 @@ async function push(title, body, important) {
     `1）做空只推 A 级（止损 ≥2%、日线转空 ≤30 天、资金费率不为负）。B、C 级不再推送开空，网页上仍能看到、标为"观察，不开"。回测：A 级做空 2018 年起三段都赚；B 级是拖后腿的那部分。\n2）空单合计名义不超过本金 40%：开空推送里会列出模型里还持有的空单各占多少，网页「可以开仓」按你标记的持仓精确算，到上限就写"这笔不开"。\n3）策略状态灯只作提示，不再自动减半 / 暂停（回测：按灯减仓反而少赚）。\n做多两套不变。`, false);
   if (!first && state.v7 && !state.v8) await push("盯盘已调整：做空门槛放宽 + 每日状态",
     `1）做空反弹门槛从 RSI 65 放宽到 60：信号大约多八成，回测两段数据总收益都更高（单笔平均会低一些）。A 级的其他条件不变（止损 ≥2%、转空 ≤30 天、资金费率不为负）。\n2）B / C 级信号改成发一条普通提醒「只观察不开」，不再完全静音。\n3）每天第一次运行发一条「每日状态」：没信号也发，写清为什么没信号、程序跑了几次。哪天没收到，就是程序没在跑。\n4）程序中断超过 10 小时，恢复时会提醒。`, false);
+  // ===== 主流币大波动提醒（2026-11-15，只是"注意提醒"，不是进场信号）=====
+  // 回测（BTC/ETH/SOL 1 小时 K 线 2018 年起，桌面/BTC/crypto-desk-大波动提醒研究）：1 小时涨跌 ≥ 过去 30 天 1 小时波动的 5 倍，每币每月约 2～3 次
+  //   之后 24 小时基本五五开；只有"日线向上时的急跌"两段都偏反弹（56% / 64%，平均反弹 +1.2% / +2.5%）；触发后 24 小时内通常还会沿原方向再走 1.6%～3.4%
+  //   之后 48 小时内出现系统信号的比例很低（做空 0～7%，双轨做多 8～17%）→ 只提醒去看看，不给仓位
+  const VOL_COINS = ["BTC", "ETH", "SOL"], VOL_K = 5, VOL_COOL = 6 * 3600000;
+  state.volLast = state.volLast || {};
+  const VOL_TXT = {
+    "-1|1": ["上涨趋势里的急跌", "历史上这种情况 24 小时后反弹的占 56%～64%，平均反弹 1%～2.5%；但 24 小时内常常还会再跌约 2% 才回头。", "别恐慌卖，也别马上抄底；系统没出做多信号就不动。"],
+    "-1|-1": ["下跌趋势里的急跌", "历史上之后 24 小时继续跌和反弹大约各一半；24 小时内常常还会再跌 1.5%～3%。", "别追空。做空要等反弹到过热（RSI 60 以上）再回落，系统出信号会推送。"],
+    "1|1": ["上涨趋势里的急涨", "历史上之后 24 小时继续涨和回落大约各一半；24 小时内常常还会再涨 2%～3%，但也经常回吐。", "别追高。双轨做多 / 日线突破出信号会推送，按信号来。"],
+    "1|-1": ["下跌趋势里的急涨", "历史上之后 24 小时继续涨和回落大约各一半。下跌趋势里的急涨多半是反弹，涨到过热再回落时就是系统的做空机会。", "别追多，也别马上空；等做空信号推送。"],
+  };
+  for (const b of VOL_COINS) {
+    try {
+      const [r1h] = await klines(b, "1h", 900), now = Date.now();
+      const closed = r1h.filter(x => x[0] + 3600000 <= now), last = r1h[r1h.length - 1];
+      if (closed.length < 750) continue;
+      const rets = []; for (let i = closed.length - 721; i < closed.length - 1; i++) rets.push(closed[i][4] / closed[i - 1][4] - 1);   // 不含最新一根（同回测）
+      const m = rets.reduce((a, x) => a + x, 0) / rets.length, sd = Math.sqrt(rets.reduce((a, x) => a + (x - m) ** 2, 0) / (rets.length - 1));
+      // 最近收盘的一根，或者正在走的这一根（相对上一根收盘）
+      const c0 = closed[closed.length - 1], cPrev = closed[closed.length - 2];
+      const cand = [[c0[4] / cPrev[4] - 1, c0[0] + 3600000, "过去 1 小时"]];
+      if (last && last[0] + 3600000 > now) cand.push([last[4] / c0[4] - 1, now, `这个小时（${Math.round((now - last[0]) / 60000)} 分钟内）`]);
+      const hit = cand.filter(x => sd > 0 && Math.abs(x[0]) >= VOL_K * sd).sort((a, c) => Math.abs(c[0]) - Math.abs(a[0]))[0];
+      if (!hit || now - (state.volLast[b] || 0) < VOL_COOL) continue;
+      state.volLast[b] = now;
+      if (first) continue;
+      const [r, , when] = hit, dirn = r > 0 ? 1 : -1, x = R[b], dd = x && x.v ? x.v.dir : (x && x.t ? (x.t.dir || 0) : 0);
+      const txt = VOL_TXT[`${dirn}|${dd > 0 ? 1 : -1}`], p = x ? x.price : c0[4];
+      const hold = [];
+      if (x && x.v && x.v.action === "持空中") hold.push(`4小时做空模型持空中：止损 ${fmt(x.v.stop)}（${pctS(x.v.stop / p - 1)}），4 小时收盘站上才平`);
+      if (x && x.qs && x.qs.action === "持空中") hold.push(`双轨做空模型持空中：止损 ${fmt(x.qs.stop)}（${pctS(x.qs.stop / p - 1)}）`);
+      if (x && x.q && x.q.action === "持多中") hold.push(`双轨做多模型持多中：死叉才卖，黄线 ${fmt(x.q.l2)}（${pctS(x.q.l2 / p - 1)}）`);
+      if (x && x.t && x.t.open && !x.t.exiting) hold.push(`日线趋势模型持多中：止损 ${fmt(x.t.open.exitLv || x.t.open.stop)}`);
+      events.push({ coin: b, kind: "vol", price: p, important: false,
+        title: `${b} ${when}${dirn > 0 ? "急涨" : "急跌"} ${pctS(r)} · 大波动提醒`,
+        body: `${when}${dirn > 0 ? "涨了" : "跌了"} ${Math.abs(r * 100).toFixed(1)}%，是平时 1 小时波动的 ${(Math.abs(r) / sd).toFixed(1)} 倍。日线${dd > 0 ? "向上" : dd < 0 ? "向下" : "方向不明"}，属于「${txt[0]}」。\n${txt[1]}\n建议：${txt[2]}\n${hold.length ? hold.join("\n") : "模型在这个币上没有持仓。"}\n这只是注意提醒，不是开仓信号：回测里大波动之后的走势基本是五五开，看到就追历史上不占便宜。` });
+    } catch (e) { console.log(b, "大波动检查失败：", e.message); }
+  }
+  { // 同一次运行里多个币一起触发：合并成一条
+    const vs = events.filter(e => e.kind === "vol");
+    if (vs.length >= 2) {
+      const merged = { coin: null, kind: "vol", important: false, title: `${vs.map(e => e.title.split(" · ")[0]).join("，")} · 大波动提醒`, body: vs.map(e => `【${e.coin}】${e.body.split("\n这只是注意提醒")[0]}`).join("\n\n") + "\n\n这只是注意提醒，不是开仓信号：回测里大波动之后的走势基本是五五开，看到就追历史上不占便宜。" };
+      for (const e of vs) events.splice(events.indexOf(e), 1);
+      events.push(merged);
+    }
+  }
+  if (!first && state.v10 && !state.v11) await push("新增：主流币大波动提醒",
+    `BTC、ETH、SOL 1 小时涨跌超过平时的 5 倍时推一条（每个币每月约 2～3 次），告诉你属于哪种情况、历史上之后一般怎么走、模型有没有持仓。\n回测：大波动之后基本五五开，所以只是提醒你看一眼，不是开仓信号；只有"上涨趋势里的急跌"多数会反弹（56%～64%），这时别恐慌卖。`, false);
   if (!first && state.v9 && !state.v10) await push("双轨实验线：可切周期 + 扩到 38 个币",
     `网页「双轨实验」页可以切 1 / 2 / 3 / 4 小时和"主流 13 个 / 全部 38 个"。回测：1、2 小时三条线都不赚（只看不做）；3 小时能赚但比 4 小时弱；4 小时最好。\n新 25 个币在 4 小时上只有双轨做多两段都赚，所以只加这一条推送，标"双轨实验线（新币）"；两种做空在新币上不稳，不推。推送仍然只看 4 小时。`, false);
   if (!first && state.v8 && !state.v9) await push("新增：双轨实验线",
     `网页多了一个「双轨实验」页：同样 13 个币，"什么时候进"改用红线 EMA5 / 黄线 EMA34——日线向下时，反弹碰到黄线再跌回红线下方就开空；止盈止损和现行一样（RSI 35 / EMA200）。只做 A 级。\n回测：胜率 66%、平均每次 +0.6%、持仓 2～3 天（现行反弹做空：61%、+2.2%、4 天）。胜率高、单笔小、好拿一些。\n两条线并排记账，推送会标「双轨开空 / 双轨平空」。实验线不进首页持仓统计。`, false);
-  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.v9 = 1; state.v10 = 1; state.trendCoins = SYMBOLS;
+  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.v9 = 1; state.v10 = 1; state.v11 = 1; state.trendCoins = SYMBOLS;
   // 每日状态单独发（不并进汇总），其余超过 6 条才合并
   const dg = events.filter(e => e.kind === "digest"), rest = events.filter(e => e.kind !== "digest");
   if (rest.length > 6) await push(`${rest.length} 条新提醒`, rest.map(e => e.title).join("\n"), true);

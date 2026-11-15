@@ -2086,7 +2086,7 @@ function updateBadge() {
   const n = S.tab === "msgs" ? 0 : unseen();
   btn.innerHTML = `◉ <span>消息中心</span>${n ? `<span class="badge">${n > 99 ? "99+" : n}</span>` : ""}`;
 }
-const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"], carry: ["套利", "dnone"], watch: ["只观察", "dnone"], digest: ["每日状态", "dnone"], ops: ["程序", "loss"], guard: ["持仓守护", "kfollow"], qopen: ["双轨开多", "win"], qclose: ["双轨平多", "loss"], qsopen: ["双轨开空", "ddown"], qsclose: ["双轨平空", "loss"] };
+const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"], carry: ["套利", "dnone"], watch: ["只观察", "dnone"], digest: ["每日状态", "dnone"], ops: ["程序", "loss"], guard: ["持仓守护", "kfollow"], qopen: ["双轨开多", "win"], qclose: ["双轨平多", "loss"], qsopen: ["双轨开空", "ddown"], qsclose: ["双轨平空", "loss"], vol: ["大波动", "kfollow"] };
 function msgsPage() {
   const list = (S.alerts || []).slice().sort((x, y) => y.t - x.t), seen = S.seenPrev ?? S.seenAt;
   let day = "", html = "";
