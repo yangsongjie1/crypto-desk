@@ -312,6 +312,7 @@ nav button[aria-current="page"] {color:#e5f2ff;background:#1c324c;box-shadow:ins
 .lab-verdict{font-size:16px;font-weight:700;margin:6px 0 8px}
 .lab-go{border-left-color:var(--down)}.lab-go .lab-verdict{color:var(--down)}.lab-soon{border-left-color:#C98A0C}.lab-soon .lab-verdict{color:#C98A0C}.lab-hold{border-left-color:var(--accent)}.lab-close{border-left-color:var(--up)}.lab-wait .lab-verdict,.lab-no .lab-verdict{color:var(--muted)}.lab-no{opacity:.8}
 .lab-gap{font-size:13px;line-height:1.7}.lab-gap span{display:inline-block;min-width:56px;color:var(--muted)}.lab-hist{font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.5}
+.lab-switch{margin:0 0 14px}.lab-switch>div{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}.lab-switch span{min-width:34px;color:var(--muted);font-size:13px}.lab-switch button{border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:14px;cursor:pointer}.lab-switch button.on{background:var(--accent);border-color:var(--accent);color:#fff}.lab-tfw{font-size:13px;line-height:1.6;margin:4px 0 0}.lab-tfw b.ga{color:var(--accent)}.lab-tfw b.gb{color:var(--ink)}.lab-tfw b.gc{color:#C98A0C}.lab-cmpg{margin-top:6px}.lab-cmpg i{font-style:normal;font-size:12px;color:var(--muted)}.lab-cmpg b.ga{color:var(--accent);font-size:12px}.lab-cmpg b.gc{color:#C98A0C;font-size:12px}
 .lab-cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.lab-cmpc{background:var(--sunk);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.8}.lab-cmpc b{font-size:15px}.lab-cmpc span:first-child{display:inline-block;min-width:76px;color:var(--muted)}
 </style>
 </head>
@@ -329,7 +330,7 @@ nav button[aria-current="page"] {color:#e5f2ff;background:#1c324c;box-shadow:ins
 </nav>
 <script>
 (function ENGINE() {
-const TF_MS = { "1d": 86400000, "4h": 14400000, "30m": 1800000, "5m": 300000 };
+const TF_MS = { "1d": 86400000, "4h": 14400000, "1h": 3600000, "30m": 1800000, "5m": 300000 };
 const WARMUP = 200;
 function ema(x, n) {
   const a = 2 / (n + 1), o = new Float64Array(x.length);
@@ -521,7 +522,7 @@ const GRADE_LEVEL = { "回测亏损": 0, "样本不足": 1, "接近打平": 2, "
 const SOURCES = [
   { id: "bybit", name: "Bybit",
     async klines(base, tf, total) {
-      const iv = { "1d": "D", "4h": "240", "30m": "30", "5m": "5" }[tf], lim = Math.min(1000, total), out = new Map();
+      const iv = { "1d": "D", "4h": "240", "1h": "60", "30m": "30", "5m": "5" }[tf], lim = Math.min(1000, total), out = new Map();
       let end = Date.now();
       for (let p = 0; p < 6 && out.size < total; p++) {
         const j = await getJSON(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${base}${QUOTE}&interval=${iv}&end=${end}&limit=${lim}`);
@@ -542,7 +543,7 @@ const SOURCES = [
   { id: "okx", name: "OKX",
     async klines(base, tf, total) {
       total = Math.min(total, 1500);
-      const bar = { "1d": "1Dutc", "4h": "4H", "30m": "30m", "5m": "5m" }[tf], out = new Map();
+      const bar = { "1d": "1Dutc", "4h": "4H", "1h": "1H", "30m": "30m", "5m": "5m" }[tf], out = new Map();
       let after = "";
       for (let p = 0; p < 16 && out.size < total; p++) {
         const j = await getJSON(`https://www.okx.com/api/v5/market/history-candles?instId=${base}-${QUOTE}&bar=${bar}&limit=100${after ? "&after=" + after : ""}`);
@@ -828,8 +829,8 @@ function tfChips(b) {
 // 做空反弹门槛（2026-11-14 回测，13 个币，A 级 + 资金费率 >0，真实资金费）：RSI 从 65 降到 60
 //   近 1000 天：64 笔 → 114 笔，合计 +220% → +246%，PF 3.27 → 2.14；2018～2024-02：93 笔 → 179 笔，合计 +113% → +311%，PF 1.37 → 1.65
 const SHORT_RSI_IN = 60;
-function swingCalc(k4, k1) {
-  const H = 14400000, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005;
+function swingCalc(k4, k1, bar = 14400000) {
+  const H = bar, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005 * bar / 14400000;
   const ema = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
   const rsiF = (c, n) => { const L = c.length, o = new Float64Array(L).fill(50), a = 1 / n; let up = 0, dn = 0;
     for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0);
@@ -864,7 +865,7 @@ function swingCalc(k4, k1) {
   else if (prev) action = prev > 0 ? "平多" : "平空";
   else { const d = dir[L]; phase = !d ? "nodir" : (d < 0 ? c[L] > e200[L] : c[L] < e200[L]) ? "wrongside" : (d < 0 ? r[L] > SHORT_RSI_IN : r[L] < 35) ? "hot" : "wait"; }
   return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, open, ddir, stats: { L: st(1), S: st(-1) },
-    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI] };
+    age: dage[sigI] / (D / H), sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI] };
 }
 const SW = {};
 function swingFor(b) {
@@ -883,8 +884,8 @@ function swingFor(b) {
 // 结果：近 1000 天 134 笔，胜率 66%，平均 +0.64%，赚亏比 1.30，回撤 −8.6%；2018～2024-02 223 笔，66%，+0.46%，1.16
 // 对照现行 RSI60 反弹做空：114 笔 61% +2.16% 2.14 / 179 笔 64% +1.74% 1.65。双轨版胜率高、单笔小、持仓短（中位 56 小时 vs 92 小时）
 // 研究：桌面/BTC/crypto-desk-双轨反弹做空研究/backtest_qx_rebound.py
-function qxsCalc(k4, k1) {
-  const H = 14400000, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005, LOOK = 7;
+function qxsCalc(k4, k1, bar = 14400000) {
+  const H = bar, D = 86400000, W = 200, FEE = 0.001, SLIP = 0.0005, FUND = 0.00005 * bar / 14400000, LOOK = 7, BPD = D / bar;
   const ema = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
   const rsiF = (c, n) => { const L = c.length, o = new Float64Array(L).fill(50), a = 1 / n; let up = 0, dn = 0;
     for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0);
@@ -900,7 +901,7 @@ function qxsCalc(k4, k1) {
   const trig = new Uint8Array(n), gateOk = new Uint8Array(n);
   for (let i = LOOK; i < n; i++) {
     trig[i] = e5[i] < e34[i] && c[i] < e5[i] && c[i - 1] >= e5[i - 1] && touchedAt(i) && hotAt(i) >= 50 ? 1 : 0;
-    gateOk[i] = e200[i] / c[i] - 1 >= 0.02 && dage[i] / 6 <= 30 ? 1 : 0;
+    gateOk[i] = e200[i] / c[i] - 1 >= 0.02 && dage[i] / BPD <= 30 ? 1 : 0;
   }
   const want = new Int8Array(n); let s = 0;
   for (let i = 1; i < n; i++) {
@@ -912,10 +913,10 @@ function qxsCalc(k4, k1) {
   const trades = [], ev = []; let side = 0, e = 0, eI = 0, open = null;
   for (let i = W + 1; i < n; i++) { const w = want[i - 1];
     if (side && w !== side) { const x = o[i], wy = why(i - 1); trades.push({ side, r: 1 - x * (1 + SLIP) / e - 2 * FEE - FUND * (i - eI), t0: k4.ts[eI], t1: k4.ts[i], p0: e, p1: x * (1 + SLIP), bars: i - eI, why: wy }); ev.push({ t: k4.ts[i - 1] + H, act: "平空", price: c[i - 1], why: wy, whyW: whyW[wy] }); side = 0; }
-    if (!side && w) { side = w; e = o[i] * (1 - SLIP); eI = i; ev.push({ t: k4.ts[i - 1] + H, act: "开空", price: c[i - 1], dist: e200[i - 1] / c[i - 1] - 1, age: dage[i - 1] / 6, rsi: r[i - 1] }); } }
+    if (!side && w) { side = w; e = o[i] * (1 - SLIP); eI = i; ev.push({ t: k4.ts[i - 1] + H, act: "开空", price: c[i - 1], dist: e200[i - 1] / c[i - 1] - 1, age: dage[i - 1] / BPD, rsi: r[i - 1] }); } }
   const L = n - 1, now = want[L], prev = want[L - 1];
   if (side) open = { side, t0: k4.ts[eI], p0: e, bars: n - eI };
-  else if (now) { open = { side: now, t0: k4.ts[L] + H, p0: c[L], bars: 0 }; ev.push({ t: k4.ts[L] + H, act: "开空", price: c[L], dist: e200[L] / c[L] - 1, age: dage[L] / 6, rsi: r[L], fresh: true }); }
+  else if (now) { open = { side: now, t0: k4.ts[L] + H, p0: c[L], bars: 0 }; ev.push({ t: k4.ts[L] + H, act: "开空", price: c[L], dist: e200[L] / c[L] - 1, age: dage[L] / BPD, rsi: r[L], fresh: true }); }
   if (prev && !now && !ev.some(x => x.act === "平空" && x.t === k4.ts[L] + H)) ev.push({ t: k4.ts[L] + H, act: "平空", price: c[L], why: why(L), whyW: whyW[why(L)] });
   const st = () => { const t = trades; if (!t.length) return { n: 0 }; const w = t.filter(x => x.r > 0).length; return { n: t.length, w, win: Math.round(100 * w / t.length), avg: 100 * t.reduce((a, x) => a + x.r, 0) / t.length }; };
   let action = "观望", entry = null, sinceBars = null, phase = null, sigI = L;
@@ -924,116 +925,164 @@ function qxsCalc(k4, k1) {
   else if (prev) action = "平空";
   else { const d = dir[L]; phase = d > 0 ? "nolong" : !d ? "nodir" : c[L] > e200[L] ? "wrongside" : e5[L] >= e34[L] ? "above" : (touchedAt(L) && hotAt(L) >= 50) ? "touched" : "wait"; }
   return { dir: dir[L], action, side: now, entry, sinceBars, phase, stop: e200[L], rsi: r[L], price: c[L], barTs: k4.ts[L], trades, ev, open, stats: st(),
-    age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI], l1: e5[L], l2: e34[L], touched: touchedAt(L), hot7: hotAt(L), gate: !!gateOk[L] };
+    age: dage[sigI] / BPD, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI], l1: e5[L], l2: e34[L], touched: touchedAt(L), hot7: hotAt(L), gate: !!gateOk[L] };
 }
 
-// ===== 双轨实验线 tab（2026-11-14）：一眼看出现在做不做、做哪个 =====
-const QXS = {};
-function qxsFor(b) {
-  if (!SHORT_SET.includes(b)) return null;
-  const c4 = S.coins[b].tf["4h"], c1 = S.coins[b].tf["1d"];
-  if (!c4?.k || !c1?.k) return null;
-  const key = c4.k.ts.at(-1) + "|" + c1.k.ts.at(-1) + "|" + c4.k.c.length;
-  if (QXS[b]?.key !== key) { const v = qxsCalc(c4.k, c1.k); v.b = b; QXS[b] = { key, v }; }
-  return QXS[b].v;
+// 扩币池 + 多周期回测结果（2026-11-15，backtest_pool_tf.py；数据截止 2026-11-13）
+const LAB_BT = {"G":{"1h":{"S":{"老13":[[142,51,-0.63,0.73],[281,53,-0.34,0.86]],"新25":[[490,54,-0.04,0.98],[494,51,-0.25,0.91]]},"QS":{"老13":[[265,63,-0.4,0.77],[482,63,-0.0,1.0]],"新25":[[813,65,0.14,1.08],[741,61,-0.34,0.86]]},"QL":{"老13":[[2734,27,-0.03,0.98],[5245,27,0.29,1.18]],"新25":[[5029,27,-0.02,0.99],[5669,27,0.18,1.08]]}},"2h":{"S":{"老13":[[150,50,-0.5,0.82],[263,59,0.74,1.33]],"新25":[[420,52,0.23,1.08],[369,49,-0.26,0.93]]},"QS":{"老13":[[217,62,-0.4,0.83],[372,66,0.18,1.08]],"新25":[[571,64,0.17,1.07],[523,60,-0.36,0.89]]},"QL":{"老13":[[1381,26,-0.0,1.0],[2545,31,1.28,1.61]],"新25":[[2369,25,0.01,1.0],[2732,29,1.02,1.36]]}},"3h":{"S":{"老13":[[128,51,0.41,1.17],[223,61,0.98,1.4]],"新25":[[308,57,1.33,1.5],[317,49,-0.12,0.97]]},"QS":{"老13":[[165,67,0.05,1.02],[261,64,-0.23,0.92]],"新25":[[418,63,0.37,1.13],[425,68,1.24,1.48]]},"QL":{"老13":[[889,26,0.43,1.19],[1641,31,2.78,2.12]],"新25":[[1612,25,0.91,1.27],[1752,28,1.53,1.42]]}},"4h":{"S":{"老13":[[114,61,2.16,2.14],[179,64,1.74,1.65]],"新25":[[267,57,2.17,1.8],[288,46,-0.26,0.94]]},"QS":{"老13":[[134,66,0.64,1.3],[223,66,0.46,1.16]],"新25":[[384,59,0.32,1.09],[362,62,0.48,1.14]]},"QL":{"老13":[[695,29,1.42,1.56],[1212,31,3.06,2.07]],"新25":[[1156,24,0.93,1.24],[1277,28,2.42,1.6]]}}},"C":{"BTC":{"1h":{"S":[12,67,0.45],"QS":[28,57,-0.51],"QL":[219,26,-0.07]},"2h":{"S":[11,55,0.02],"QS":[22,59,-0.33],"QL":[116,28,-0.12]},"3h":{"S":[9,56,0.79],"QS":[15,67,0.07],"QL":[71,27,-0.17]},"4h":{"S":[9,44,0.65],"QS":[11,55,-0.56],"QL":[57,35,0.2]}},"ETH":{"1h":{"S":[16,69,1.07],"QS":[26,69,0.17],"QL":[224,25,-0.26]},"2h":{"S":[9,67,2.31],"QS":[23,70,0.28],"QL":[104,24,-0.38]},"3h":{"S":[10,60,1.98],"QS":[14,64,0.66],"QL":[63,25,0.54]},"4h":{"S":[8,88,4.97],"QS":[8,62,1.16],"QL":[50,30,1.68]}},"SOL":{"1h":{"S":[9,44,-1.18],"QS":[12,83,1.26],"QL":[210,30,-0.06]},"2h":{"S":[10,50,0.33],"QS":[10,60,0.25],"QL":[95,28,0.32]},"3h":{"S":[8,50,0.01],"QS":[13,69,-0.37],"QL":[67,28,1.54]},"4h":{"S":[6,67,5.33],"QS":[10,90,4.48],"QL":[55,29,1.49]}},"BNB":{"1h":{"S":[2,0,-3.09],"QS":[4,25,-2.83],"QL":[234,26,-0.2]},"2h":{"S":[3,67,0.66],"QS":[2,50,-1.97],"QL":[116,27,0.03]},"3h":{"S":[4,25,-2.53],"QS":[6,67,-0.63],"QL":[77,27,0.63]},"4h":{"S":[5,20,-2.49],"QS":[5,40,-2.0],"QL":[67,33,0.41]}},"XRP":{"1h":{"S":[9,56,0.63],"QS":[18,39,-1.71],"QL":[199,28,0.68]},"2h":{"S":[5,20,-4.14],"QS":[21,57,-0.64],"QL":[95,22,0.27]},"3h":{"S":[11,45,-0.46],"QS":[14,64,-1.15],"QL":[68,16,-0.08]},"4h":{"S":[8,75,2.49],"QS":[10,70,1.74],"QL":[48,25,6.57]}},"DOGE":{"1h":{"S":[17,41,-1.68],"QS":[37,68,-0.24],"QL":[210,28,0.69]},"2h":{"S":[22,55,0.79],"QS":[27,70,-0.01],"QL":[104,20,1.48]},"3h":{"S":[14,71,1.05],"QS":[19,74,0.81],"QL":[64,23,2.6]},"4h":{"S":[13,69,3.75],"QS":[12,50,-3.16],"QL":[45,33,5.62]}},"ADA":{"1h":{"S":[15,40,-2.71],"QS":[27,70,-1.19],"QL":[191,29,-0.01]},"2h":{"S":[18,44,-2.52],"QS":[25,56,-1.98],"QL":[95,23,-0.85]},"3h":{"S":[10,40,0.15],"QS":[12,75,1.26],"QL":[53,23,1.89]},"4h":{"S":[11,45,1.38],"QS":[13,77,2.0],"QL":[40,30,3.39]}},"AVAX":{"1h":{"S":[15,53,-0.37],"QS":[23,65,0.03],"QL":[202,24,-0.37]},"2h":{"S":[17,47,-0.17],"QS":[17,76,1.79],"QL":[94,28,0.26]},"3h":{"S":[13,62,1.62],"QS":[15,80,2.14],"QL":[62,29,-0.02]},"4h":{"S":[14,64,2.6],"QS":[16,75,2.26],"QL":[55,27,-0.17]}},"LINK":{"1h":{"S":[19,53,-0.89],"QS":[29,55,-0.68],"QL":[215,27,-0.35]},"2h":{"S":[21,38,-1.84],"QS":[27,48,-1.42],"QL":[102,26,-0.38]},"3h":{"S":[19,47,0.61],"QS":[19,68,-0.34],"QL":[74,22,-1.12]},"4h":{"S":[11,73,4.09],"QS":[15,73,1.39],"QL":[54,28,0.3]}},"LTC":{"1h":{"S":[12,50,0.15],"QS":[27,67,-0.07],"QL":[212,28,-0.3]},"2h":{"S":[11,55,-0.65],"QS":[19,63,-0.48],"QL":[112,28,-0.46]},"3h":{"S":[10,50,0.02],"QS":[16,56,-2.11],"QL":[76,21,-1.09]},"4h":{"S":[9,67,1.06],"QS":[13,69,-0.56],"QL":[61,25,-1.32]}},"DOT":{"1h":{"S":[12,25,-2.27],"QS":[27,70,-0.13],"QL":[171,29,0.02]},"2h":{"S":[13,46,-1.01],"QS":[15,60,-0.36],"QL":[100,31,-0.41]},"3h":{"S":[11,45,-0.06],"QS":[10,60,-0.68],"QL":[60,28,0.28]},"4h":{"S":[11,45,0.51],"QS":[11,55,-0.04],"QL":[50,22,1.35]}},"TRX":{"1h":{"S":[1,100,0.77],"QS":[2,50,-0.08],"QL":[223,27,0.07]},"2h":{"S":[2,50,-0.81],"QS":[2,50,-0.57],"QL":[124,31,0.25]},"3h":{"S":[3,0,-2.31],"QS":[5,20,-2.06],"QL":[82,34,0.73]},"4h":{"S":[2,0,-1.75],"QS":[4,25,-1.56],"QL":[55,31,1.04]}},"BCH":{"1h":{"S":[3,100,4.88],"QS":[5,20,-0.97],"QL":[224,25,-0.11]},"2h":{"S":[8,75,1.39],"QS":[7,71,0.38],"QL":[124,23,-0.07]},"3h":{"S":[6,50,-0.2],"QS":[7,71,2.39],"QL":[72,29,0.56]},"4h":{"S":[7,71,0.6],"QS":[6,67,-0.06],"QL":[58,33,0.43]}},"ZEC":{"1h":{"S":[25,48,-0.37],"QS":[34,71,0.6],"QL":[210,30,1.12]},"2h":{"S":[16,38,-2.1],"QS":[21,62,-0.59],"QL":[112,26,1.39]},"3h":{"S":[14,43,-3.36],"QS":[11,55,-2.98],"QL":[80,29,4.27]},"4h":{"S":[16,50,0.23],"QS":[12,58,-0.6],"QL":[58,33,4.23]}},"NEAR":{"1h":{"S":[20,25,-2.36],"QS":[34,59,-0.54],"QL":[222,34,0.56]},"2h":{"S":[25,60,0.08],"QS":[23,48,-1.27],"QL":[100,27,0.19]},"3h":{"S":[19,42,-0.24],"QS":[19,58,-0.66],"QL":[73,26,0.57]},"4h":{"S":[15,47,0.05],"QS":[23,52,-1.38],"QL":[59,19,-0.6]}},"SUI":{"1h":{"S":[10,70,0.87],"QS":[27,52,-0.64],"QL":[207,27,0.32]},"2h":{"S":[18,50,0.09],"QS":[20,55,-0.75],"QL":[97,28,1.14]},"3h":{"S":[11,55,1.48],"QS":[13,69,1.7],"QL":[62,23,0.34]},"4h":{"S":[8,75,5.16],"QS":[13,62,2.08],"QL":[54,19,-0.31]}},"PEPE":{"1h":{"S":[32,53,-0.17],"QS":[48,71,0.67],"QL":[216,28,0.5]},"2h":{"S":[18,50,-0.92],"QS":[32,72,1.07],"QL":[109,27,4.83]},"3h":{"S":[12,50,0.65],"QS":[27,59,-1.0],"QL":[72,24,8.72]},"4h":{"S":[12,42,-1.36],"QS":[16,62,-0.88],"QL":[52,27,1.96]}},"WLD":{"1h":{"S":[22,64,1.01],"QS":[41,63,0.01],"QL":[194,26,0.29]},"2h":{"S":[19,42,0.04],"QS":[35,60,0.21],"QL":[77,25,-0.84]},"3h":{"S":[15,40,-0.5],"QS":[30,70,0.98],"QL":[59,32,0.09]},"4h":{"S":[12,50,0.76],"QS":[21,67,0.95],"QL":[39,31,0.72]}},"UNI":{"1h":{"S":[20,70,1.81],"QS":[32,69,0.38],"QL":[216,27,-0.13]},"2h":{"S":[14,57,1.07],"QS":[23,78,2.47],"QL":[112,29,0.56]},"3h":{"S":[12,83,5.46],"QS":[13,77,3.4],"QL":[68,26,1.36]},"4h":{"S":[7,100,10.25],"QS":[9,78,5.18],"QL":[45,31,0.45]}},"QNT":{"1h":{"S":[15,27,-2.41],"QS":[30,50,-0.69],"QL":[200,28,0.78]},"2h":{"S":[15,60,2.17],"QS":[25,56,-0.39],"QL":[118,25,-0.7]},"3h":{"S":[10,60,1.11],"QS":[20,50,0.11],"QL":[76,22,-0.46]},"4h":{"S":[12,42,0.76],"QS":[20,60,1.73],"QL":[52,13,3.51]}},"AAVE":{"1h":{"S":[14,57,0.84],"QS":[24,67,0.5],"QL":[217,28,-0.06]},"2h":{"S":[10,60,3.28],"QS":[14,64,0.74],"QL":[115,25,-0.9]},"3h":{"S":[11,55,0.28],"QS":[15,47,-1.85],"QL":[76,29,-0.21]},"4h":{"S":[8,88,8.34],"QS":[13,69,1.23],"QL":[54,33,0.19]}},"FET":{"1h":{"S":[18,44,-0.3],"QS":[35,49,-1.23],"QL":[189,27,0.35]},"2h":{"S":[18,61,2.38],"QS":[19,68,-0.13],"QL":[95,28,-0.1]},"3h":{"S":[11,36,-2.04],"QS":[14,71,1.58],"QL":[63,29,2.02]},"4h":{"S":[7,14,-6.12],"QS":[19,63,-0.88],"QL":[44,30,0.59]}},"LIT":{"1h":{"S":[17,53,-0.08],"QS":[27,63,-0.06],"QL":[69,36,0.85]},"2h":{"S":[14,36,-1.36],"QS":[21,52,-0.35],"QL":[39,36,0.1]},"3h":{"S":[8,38,-0.83],"QS":[17,47,-2.37],"QL":[26,38,1.58]},"4h":{"S":[10,30,0.03],"QS":[12,33,-2.97],"QL":[22,27,0.95]}},"INJ":{"1h":{"S":[15,47,-2.28],"QS":[28,61,-0.15],"QL":[204,31,-0.23]},"2h":{"S":[17,29,-2.74],"QS":[20,60,0.45],"QL":[102,25,-1.03]},"3h":{"S":[9,56,0.84],"QS":[12,67,2.24],"QL":[70,27,-1.15]},"4h":{"S":[12,50,-0.25],"QS":[14,57,0.61],"QL":[49,31,-0.14]}},"ARB":{"1h":{"S":[21,57,-0.61],"QS":[33,64,0.08],"QL":[202,25,-0.56]},"2h":{"S":[19,58,0.73],"QS":[23,65,0.09],"QL":[90,22,-0.68]},"3h":{"S":[13,54,2.03],"QS":[14,79,2.96],"QL":[52,23,1.16]},"4h":{"S":[14,64,2.36],"QS":[15,53,-0.91],"QL":[34,24,1.3]}},"FIL":{"1h":{"S":[21,57,-0.21],"QS":[45,60,-0.46],"QL":[207,25,-0.84]},"2h":{"S":[23,52,0.2],"QS":[30,67,0.69],"QL":[90,30,0.19]},"3h":{"S":[14,79,3.26],"QS":[21,62,-0.16],"QL":[67,30,-0.53]},"4h":{"S":[14,71,3.88],"QS":[21,57,-0.17],"QL":[49,18,-2.13]}},"HBAR":{"1h":{"S":[24,67,0.69],"QS":[36,72,0.7],"QL":[201,23,-0.14]},"2h":{"S":[19,58,1.39],"QS":[25,88,1.74],"QL":[88,24,-0.49]},"3h":{"S":[10,70,3.48],"QS":[15,73,2.19],"QL":[63,24,2.09]},"4h":{"S":[7,71,2.87],"QS":[16,62,0.73],"QL":[48,21,1.2]}},"TIA":{"1h":{"S":[19,74,1.21],"QS":[30,60,0.06],"QL":[181,27,-0.36]},"2h":{"S":[13,54,0.5],"QS":[17,47,-2.31],"QL":[84,20,-0.9]},"3h":{"S":[8,62,1.18],"QS":[12,75,0.49],"QL":[61,16,-1.74]},"4h":{"S":[7,29,-1.97],"QS":[15,47,-0.7],"QL":[48,25,-0.84]}},"XLM":{"1h":{"S":[8,50,-0.04],"QS":[18,78,0.85],"QL":[196,29,0.67]},"2h":{"S":[13,69,1.2],"QS":[15,60,-0.4],"QL":[80,19,-0.3]},"3h":{"S":[11,73,2.24],"QS":[12,50,0.25],"QL":[73,23,5.38]},"4h":{"S":[10,50,1.08],"QS":[12,58,0.28],"QL":[42,21,8.21]}},"SAND":{"1h":{"S":[21,57,0.12],"QS":[25,64,-0.28],"QL":[203,27,-0.14]},"2h":{"S":[18,61,0.53],"QS":[20,55,-1.4],"QL":[88,27,0.3]},"3h":{"S":[14,79,4.93],"QS":[13,77,2.28],"QL":[54,22,0.82]},"4h":{"S":[7,71,6.55],"QS":[15,67,2.64],"QL":[34,18,5.36]}},"APT":{"1h":{"S":[21,57,0.07],"QS":[30,90,1.85],"QL":[221,22,-0.94]},"2h":{"S":[12,58,0.32],"QS":[18,72,2.06],"QL":[100,21,-1.39]},"3h":{"S":[11,73,3.44],"QS":[14,64,0.92],"QL":[64,16,-1.28]},"4h":{"S":[10,70,5.89],"QS":[15,53,0.19],"QL":[54,20,-1.52]}},"GTC":{"1h":{"S":[20,45,0.33],"QS":[41,71,0.56],"QL":[227,27,-0.17]},"2h":{"S":[22,59,1.53],"QS":[22,73,1.17],"QL":[87,24,0.59]},"3h":{"S":[15,60,2.33],"QS":[16,62,-0.6],"QL":[58,22,0.61]},"4h":{"S":[10,70,4.57],"QS":[11,73,4.51],"QL":[47,26,0.77]}},"RLC":{"1h":{"S":[28,50,-1.31],"QS":[36,69,-0.41],"QL":[227,24,-0.26]},"2h":{"S":[17,65,0.99],"QS":[26,65,-0.71],"QL":[101,26,0.27]},"3h":{"S":[9,56,1.09],"QS":[24,62,0.29],"QL":[74,28,-0.3]},"4h":{"S":[9,44,2.26],"QS":[16,50,-1.72],"QL":[41,22,0.5]}},"ICP":{"1h":{"S":[25,72,1.95],"QS":[37,57,-0.23],"QL":[201,22,-0.3]},"2h":{"S":[16,56,0.68],"QS":[26,73,0.7],"QL":[89,25,-0.37]},"3h":{"S":[17,59,2.22],"QS":[21,81,2.26],"QL":[58,17,1.27]},"4h":{"S":[13,69,3.57],"QS":[16,81,2.5],"QL":[41,27,2.32]}},"OP":{"1h":{"S":[24,71,1.85],"QS":[33,79,1.61],"QL":[204,25,-0.78]},"2h":{"S":[12,50,-0.71],"QS":[26,62,0.12],"QL":[96,25,-0.64]},"3h":{"S":[11,45,-0.14],"QS":[21,67,0.65],"QL":[63,25,-1.45]},"4h":{"S":[10,60,4.07],"QS":[19,58,0.55],"QL":[48,21,-1.7]}},"DASH":{"1h":{"S":[18,28,-2.4],"QS":[35,57,-0.59],"QL":[201,28,0.83]},"2h":{"S":[21,29,-2.09],"QS":[29,52,-0.83],"QL":[105,24,-0.39]},"3h":{"S":[19,47,0.02],"QS":[19,37,-3.06],"QL":[69,16,-0.38]},"4h":{"S":[15,53,1.52],"QS":[17,35,-3.07],"QL":[52,19,1.22]}},"OGN":{"1h":{"S":[20,45,-0.86],"QS":[38,71,0.45],"QL":[222,23,-0.95]},"2h":{"S":[17,53,0.26],"QS":[30,77,0.61],"QL":[107,27,-0.61]},"3h":{"S":[13,77,4.13],"QS":[12,83,4.56],"QL":[69,26,-1.54]},"4h":{"S":[11,73,4.18],"QS":[14,86,3.9],"QL":[46,24,-1.67]}},"SEI":{"1h":{"S":[12,67,1.01],"QS":[16,81,1.19],"QL":[192,27,-0.26]},"2h":{"S":[14,43,-0.75],"QS":[11,64,0.39],"QL":[88,25,-0.82]},"3h":{"S":[11,45,0.27],"QS":[13,31,-2.15],"QL":[62,23,0.48]},"4h":{"S":[11,45,0.66],"QS":[10,30,-2.79],"QL":[44,27,0.79]}}}};
+// ===== 双轨实验线 tab（2026-11-15 版）：可切周期（1h/2h/3h/4h）和币池（主流 13 / 全部 38），一眼看出做不做、做哪个 =====
+const LAB_TFS = { "1h": 3600000, "2h": 7200000, "3h": 10800000, "4h": 14400000 };
+const LAB_NEW = SYMBOLS.filter(b => !SHORT_SET.includes(b));
+const LN = { S: "现行反弹做空", QS: "双轨做空", QL: "双轨做多" };
+S.labTf = load("labTf", "4h"); S.labScope = load("labScope", "13"); if (!LAB_TFS[S.labTf]) S.labTf = "4h";
+const LABD = {}, LABC = {}, LABL = {};
+function labGroup(b) { return SHORT_SET.includes(b) ? "老13" : "新25"; }
+// 这个周期、这条线、这组币回测是否两段都赚（决定信号能不能做）
+function labOk(tf, ln, grp) { const g = LAB_BT.G[tf]?.[ln]?.[grp]; if (!g) return false; const [a, b] = g; return a[2] > 0 && a[3] > 1.1 && (b[0] < 8 || b[2] > 0); }
+function labTfWord(tf) {
+  const okS = labOk(tf, "S", "老13"), okQ = labOk(tf, "QS", "老13") || labOk(tf, "QS", "新25"), okL = labOk(tf, "QL", "老13");
+  if (tf === "4h") return { cls: "ga", w: "回测最好 · 推荐", t: "三条线回测都赚，信号会推送到手机。" };
+  if (!okS && !okQ && !okL) return { cls: "gc", w: "回测不赚 · 只看不做", t: `${tf === "1h" ? "1 小时" : "2 小时"}周期三条线回测都不赚（扣完手续费是平的或亏的），信号只给你看走势，不建议下单，也不推送。` };
+  return { cls: "gb", w: "回测能赚，但比 4 小时弱", t: "部分线回测两段都赚（卡片上会标），平均每笔比 4 小时少一半以上。只在页面显示，不推送。" };
+}
+function labResample(k, ms) {
+  const out = { ts: [], o: [], h: [], l: [], c: [] }, now = Date.now(); let g = null;
+  for (let i = 0; i < k.c.length; i++) {
+    const t = Math.floor(k.ts[i] / ms) * ms;
+    if (t !== g) { out.ts.push(t); out.o.push(k.o[i]); out.h.push(k.h[i]); out.l.push(k.l[i]); out.c.push(k.c[i]); g = t; }
+    else { const j = out.c.length - 1; out.h[j] = Math.max(out.h[j], k.h[i]); out.l[j] = Math.min(out.l[j], k.l[i]); out.c[j] = k.c[i]; }
+  }
+  if (out.ts.length && out.ts.at(-1) + ms > now) ["ts", "o", "h", "l", "c"].forEach(f => out[f].pop());   // 最后一根没收完的不要
+  return { ts: out.ts, o: Float64Array.from(out.o), h: Float64Array.from(out.h), l: Float64Array.from(out.l), c: Float64Array.from(out.c) };
+}
+function labCoins() { return S.labScope === "38" ? SYMBOLS : SHORT_SET; }
+async function labEnsure() {
+  const tf = S.labTf, need = labCoins().filter(b => !(tf === "4h" && SHORT_SET.includes(b)));
+  const key = tf === "4h" ? "4h" : "1h", jobs = need.filter(b => !LABD[b]?.[key] && !LABL[b + key]);
+  jobs.forEach(b => LABL[b + key] = 1);
+  const fjobs = labCoins().filter(b => !S.fund[b] && !LABL[b + "f"]); fjobs.forEach(b => LABL[b + "f"] = 1);
+  if (!jobs.length && !fjobs.length) return;
+  let i = 0;
+  async function worker() {
+    while (i < jobs.length) {
+      const b = jobs[i++];
+      try { const [raw] = await withSource(src => src.klines(b, key, key === "1h" ? 1500 : 1000)); (LABD[b] = LABD[b] || {})[key] = parseKlines(raw, key, Date.now()); } catch (e) { (LABD[b] = LABD[b] || {})[key + "err"] = 1; }
+      if (S.tab === "qxlab") render();
+    }
+  }
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  await Promise.all(fjobs.map(async b => { const f = await fundingOf(b); if (f) S.fund[b] = f; }));
+  if (S.tab === "qxlab") render();
+}
+function labK(b, tf) {
+  if (tf === "4h" && SHORT_SET.includes(b)) return S.coins[b].tf["4h"]?.k || null;
+  if (tf === "4h") return LABD[b]?.["4h"] || null;
+  const k1 = LABD[b]?.["1h"]; if (!k1) return null;
+  return tf === "1h" ? k1 : labResample(k1, LAB_TFS[tf]);
+}
+function labCalc(b, tf) {
+  const k = labK(b, tf), kd = S.coins[b]?.tf?.["1d"]?.k; if (!k || !kd || k.c.length < 260) return null;
+  const key = tf + "|" + k.ts.at(-1) + "|" + k.c.length + "|" + kd.ts.at(-1);
+  if (LABC[b + tf]?.key !== key) {
+    const bar = LAB_TFS[tf], v = qxsCalc(k, kd, bar), sw = swingCalc(k, kd, bar), q = qxCalc(k);
+    v.b = sw.b = b; if (v.dir > 0) Object.assign(v, { action: "观望", side: 0, phase: "nolong" }); if (sw.dir > 0 && sw.action !== "平空") Object.assign(sw, { action: "观望", side: 0, phase: "nolong" });
+    LABC[b + tf] = { key, v, sw, q, k };
+  }
+  return LABC[b + tf];
 }
 const QXS_PRIOR = { r: [66, 0.64, 1.30], o: [66, 0.46, 1.16] };
 function qxsGrade(v) {
   const dist = v.action === "持空中" ? v.sigDist : v.stop / v.price - 1, f = S.fund[v.b];
   const key = dist < 0.02 ? "C" : v.age <= 30 ? "A" : "B";
-  if (key === "A" && f && f.now <= 0) return { key: "B", k: "B 级", c: "gb", dist, age: v.age, f, short: "资金费率为负", why: "资金费率为负（空头在付钱），这种单历史上不赚钱。" };
-  return { key, k: key + " 级", c: key === "A" ? "ga" : key === "B" ? "gb" : "gc", dist, age: v.age, f,
-    short: key === "A" ? "条件都满足" : key === "B" ? "日线转空超过 30 天" : "离止损太近",
-    why: key === "A" ? "止损距离 ≥2%、日线转空 ≤30 天、资金费率 >0。" : key === "B" ? "日线转空已超过 30 天，历史上不赚钱。" : "止损距离不到 2%，不值得做。" };
+  if (key === "A" && f && f.now <= 0) return { key: "B", k: "B 级", c: "gb", dist, age: v.age, f, short: "资金费率为负" };
+  return { key, k: key + " 级", c: key === "A" ? "ga" : key === "B" ? "gb" : "gc", dist, age: v.age, f, short: key === "A" ? "条件都满足" : key === "B" ? "日线转空超过 30 天" : "离止损太近" };
 }
-// 下一根 4 小时 K 线要涨多少，RSI14 才能升到 level（只用来估"还差多少反弹"）
+// 下一根 K 线要涨多少，RSI14 才能升到 level
 function rsiRisePct(c, level, n = 14) {
   const a = 1 / n, L = c.length; let up = 0, dn = 0;
   for (let i = 1; i < L; i++) { const d = c[i] - c[i - 1], u = Math.max(d, 0), w = Math.max(-d, 0); if (i === 1) { up = u; dn = w; } else { up = a * u + (1 - a) * up; dn = a * w + (1 - a) * dn; } }
   const need = (1 - a) * (dn * level / (100 - level) - up) / a;
   return need <= 0 ? 0 : need / c[L - 1];
 }
-function coinTradeStats(T, since) { const x = T.filter(t => t.t0 >= since); if (x.length < 5) return null; const w = x.filter(t => t.r > 0).length; return { n: x.length, win: Math.round(100 * w / x.length), avg: 100 * x.reduce((a, t) => a + t.r, 0) / x.length }; }
-function winStats(T, since) {
-  const x = since ? T.filter(t => t.t0 >= since) : T; if (!x.length) return null;
-  const w = x.filter(t => t.r > 0).length, hrs = x.map(t => (t.t1 - t.t0) / 3600000).sort((a, b) => a - b);
-  return { n: x.length, win: Math.round(100 * w / x.length), avg: 100 * x.reduce((a, t) => a + t.r, 0) / x.length, sum: 100 * x.reduce((a, t) => a + t.r, 0), med: hrs[Math.floor(hrs.length / 2)] };
-}
-// 每个币一个结论
-function labVerdict(b) {
-  const v = qxsFor(b), sw = swingFor(b), q = qxFor(b); if (!v || !sw || !q) return null;
-  const k4 = S.coins[b].tf["4h"].k, price = priceOf(b) ?? v.price, g = qxsGrade(v);
-  const since = Date.now() - 1000 * 86400000;
-  const hQ = coinTradeStats(v.trades, since), hS = coinTradeStats(sw.trades.filter(t => t.side < 0), since);
-  const badCoin = hQ && hS && hQ.avg < 0 && hS.avg < 0;
-  // 双轨：离信号还差多少（反弹到黄线 / RSI 到 50）
+const labNext = tf => { const ms = LAB_TFS[tf], n = Date.now(), t = Math.ceil(n / ms) * ms, m = Math.round((t - n) / 60000); return `${md(t).slice(-5)}（还有 ${m >= 60 ? `${Math.floor(m / 60)} 小时 ` : ""}${m % 60} 分钟）`; };
+const barsDays = (bars, tf) => (bars * LAB_TFS[tf] / 86400000).toFixed(1);
+function labVerdict(b, tf) {
+  const C = labCalc(b, tf); if (!C) return null;
+  const { v, sw, q, k } = C, price = priceOf(b) ?? v.price, g = qxsGrade(v), grp = labGroup(b);
+  const bt = LAB_BT.C[b]?.[tf] || {}, hS = bt.S, hQ = bt.QS, hL = bt.QL;
+  const badCoin = hS && hQ && hS[0] >= 5 && hQ[0] >= 5 && hS[2] < 0 && hQ[2] < 0;
+  const okS = labOk(tf, "S", grp), okQ = labOk(tf, "QS", grp), okL = labOk(tf, "QL", grp);
   let gapQ = null, gapQtxt = "";
   if (v.action === "观望") {
     if (v.phase === "touched") { gapQ = 0; gapQtxt = `已经反弹到位，下一根收盘跌回 ${px(v.l1)} 以下就开空`; }
-    else if (v.phase === "wait") { const toY = Math.max(v.l2 / price - 1, 0), toR = v.hot7 >= 50 ? 0 : rsiRisePct(k4.c, 50); gapQ = Math.max(toY, toR); gapQtxt = `要先反弹 ${pct(gapQ, 1)}（碰黄线 ${px(v.l2)}）再掉头`; }
+    else if (v.phase === "wait") { const toY = Math.max(v.l2 / price - 1, 0), toR = v.hot7 >= 50 ? 0 : rsiRisePct(k.c, 50); gapQ = Math.max(toY, toR); gapQtxt = `要先反弹 ${pct(gapQ, 1)}（碰黄线 ${px(v.l2)}）再掉头`; }
     else if (v.phase === "above") { gapQ = 0.001; gapQtxt = "正在反弹，等红线跌回黄线下"; }
   }
   let gapS = null, gapStxt = "";
   if (sw.action === "观望" && sw.dir < 0) {
     if (sw.phase === "hot") { gapS = 0; gapStxt = `已经反弹过热，RSI 回落到 ${SHORT_RSI_IN} 以下就开空`; }
-    else if (sw.phase === "wait") { gapS = rsiRisePct(k4.c, SHORT_RSI_IN); gapStxt = `要先反弹约 ${pct(gapS, 1)}（RSI 从 ${sw.rsi.toFixed(0)} 到 ${SHORT_RSI_IN}）再回落`; }
+    else if (sw.phase === "wait") { gapS = rsiRisePct(k.c, SHORT_RSI_IN); gapStxt = `要先反弹约 ${pct(gapS, 1)}（RSI 从 ${sw.rsi.toFixed(0)} 到 ${SHORT_RSI_IN}）再回落`; }
   }
-  const gaps = [gapQ, gapS].filter(x => x != null), gap = gaps.length ? Math.min(...gaps) : null;
-  // 结论
-  let tone, title, rank;
-  const qOpen = v.action === "开空", sOpen = sw.action === "开空", qHold = v.action === "持空中", sHold = sw.action === "持空中";
+  const gaps = [okS ? gapS : null, okQ ? gapQ : null].filter(x => x != null), gapAll = [gapS, gapQ].filter(x => x != null);
+  const gap = gaps.length ? Math.min(...gaps) : gapAll.length ? Math.min(...gapAll) : null;
   const swg = sw.action !== "观望" ? gradeOf(sw) : null;
-  if ((qOpen && g.key === "A") || (sOpen && swg && swg.key === "A")) { tone = "go"; title = "现在可以开空"; rank = 0; }
-  else if (v.action === "平空" || sw.action === "平空") { tone = "close"; title = "拿着的话现在平空"; rank = 1; }
-  else if (qOpen || sOpen) { tone = "no"; title = `出了开空信号，但不开（${(qOpen ? g : swg).short || (qOpen ? g : swg).k}）`; rank = 4; }
-  else if (qHold || sHold) { tone = "hold"; title = "模型持空中：拿着的继续拿，没开的别追"; rank = 2; }
-  else if (v.dir > 0) { tone = "no"; title = q.action === "开多" ? "可以开多（双轨金叉）" : "日线向上，不做空"; rank = q.action === "开多" ? 0 : 5; if (q.action === "开多") tone = "go"; }
+  const qOpen = v.action === "开空", sOpen = sw.action === "开空", lOpen = q.action === "开多";
+  const goS = sOpen && swg && swg.key === "A" && okS, goQ = qOpen && g.key === "A" && okQ, goL = lOpen && okL;
+  let tone, title, rank, which = "";
+  if (goS || goQ || goL) { tone = "go"; which = [goS && "现行做空", goQ && "双轨做空", goL && "双轨做多"].filter(Boolean).join(" + "); title = goL && !goS && !goQ ? "现在可以开多" : "现在可以开空"; rank = 0; }
+  else if (sOpen || qOpen || lOpen) { tone = "no"; const why = (sOpen || qOpen) && !(okS || okQ) || lOpen && !okL ? "这个周期回测不赚" : (qOpen ? g : swg).short; title = `出了${lOpen ? "开多" : "开空"}信号，但不开（${why}）`; rank = 4; }
+  else if ((v.action === "平空" && okQ) || (sw.action === "平空" && okS) || (q.action === "平多" && okL)) { tone = "close"; title = `拿着的话现在${q.action === "平多" && okL ? "平多" : "平空"}`; rank = 1; }
+  else if ((v.action === "持空中" && okQ) || (sw.action === "持空中" && okS) || (q.action === "持多中" && okL)) { tone = "hold"; title = q.action === "持多中" && okL && !(okS && sw.action === "持空中") && !(okQ && v.action === "持空中") ? "模型持多中：拿着的继续拿，没开的别追" : "模型持空中：拿着的继续拿，没开的别追"; rank = 2; }
+  else if (v.dir > 0) { tone = "no"; title = q.phase === "bullwait" ? "日线向上，等双轨金叉做多" : "日线向上，不做空"; rank = 5; }
   else if (v.dir === 0) { tone = "no"; title = "日线方向不明，不做"; rank = 6; }
-  else if (gap === 0) { tone = "soon"; title = g.key === "A" ? "快出信号了，盯下一根 4 小时收盘" : `快出信号，但出了也不开（${g.short}）`; rank = g.key === "A" ? 1.5 : 3.5; }
+  else if (gap === 0) { tone = "soon"; title = g.key === "A" && (okS || okQ) ? "快出信号了，盯下一根收盘" : `快出信号，但出了也不开（${!(okS || okQ) ? "这个周期回测不赚" : g.short}）`; rank = g.key === "A" && (okS || okQ) ? 1.5 : 3.5; }
   else { tone = "wait"; title = gap != null ? `不做，等反弹 ${pct(gap, 1)}` : "不做，等反弹"; rank = 3 + (g.key === "A" ? 0 : 0.5) + (badCoin ? 0.4 : 0) + (gap || 0); }
   if (badCoin && (tone === "go" || tone === "soon")) title += "（这个币历史上做空不赚，减半或跳过）";
-  return { b, v, sw, q, g, price, tone, title, rank, gap, gapQtxt, gapStxt, hQ, hS, badCoin, chg: S.coins[b].change };
+  return { b, v, sw, q, g, price, tone, title, rank, gap, gapQtxt, gapStxt, hS, hQ, hL, okS, okQ, okL, which, badCoin, grp, chg: S.coins[b].change, k };
 }
 function qxLabPage() {
-  const done = SHORT_SET.every(b => S.coins[b]?.tf?.["4h"]?.k && S.coins[b]?.tf?.["1d"]?.k);
-  const capital = S.prefs.capital || 1000;
-  if (!done) return `${headerHTML('双轨实验线')}<section class="ad-panel"><div class="ad-placeholder">正在加载 13 个币的 4 小时和日线 K 线…</div></section>`;
-  const V = SHORT_SET.map(labVerdict).filter(Boolean).sort((a, b) => a.rank - b.rank);
-  const go = V.filter(x => x.tone === "go"), soon = V.filter(x => x.tone === "soon" && x.g.key === "A"), hold = V.filter(x => x.tone === "hold"), close = V.filter(x => x.tone === "close");
-  const down = V.filter(x => x.v.dir < 0).length;
-  const nearest = V.filter(x => x.tone === "wait" && x.gap != null && x.g.key === "A").sort((a, b) => a.gap - b.gap).slice(0, 3);
-  // ---- 结论
-  const headline = go.length ? `现在可以开：${go.map(x => `<b>${x.b}</b>`).join("、")}` : close.length ? `${close.map(x => x.b).join("、")} 该平空` : soon.length ? `现在不开新单；${soon.map(x => `<b>${x.b}</b>`).join("、")} 快出信号了` : "现在不开新单，等反弹";
+  const tf = S.labTf, coins = labCoins(), capital = S.prefs.capital || 1000, tw = labTfWord(tf);
+  const sw = `<div class="lab-switch"><div><span>周期</span>${Object.keys(LAB_TFS).map(t => `<button data-labtf="${t}" class="${t === tf ? "on" : ""}">${t.replace("h", " 小时")}</button>`).join("")}</div>
+    <div><span>币</span><button data-labscope="13" class="${S.labScope === "13" ? "on" : ""}">主流 13 个</button><button data-labscope="38" class="${S.labScope === "38" ? "on" : ""}">全部 38 个</button></div>
+    <p class="lab-tfw"><b class="${tw.cls}">${tf.replace("h", " 小时")}：${tw.w}</b> ${tw.t}</p></div>`;
+  const dailyReady = coins.every(b => S.coins[b]?.tf?.["1d"]?.k);
+  const V = coins.map(b => labVerdict(b, tf)).filter(Boolean).sort((a, b) => a.rank - b.rank);
+  const missing = coins.length - V.length;
+  if (V.length < Math.min(5, coins.length)) { labEnsure(); return `${headerHTML('双轨实验线')}${sw}<section class="ad-panel"><div class="ad-placeholder">正在拉取 ${tf.replace("h", " 小时")} K 线：${V.length} / ${coins.length} 个币…</div></section>`; }
+  if (missing) labEnsure();
+  const go = V.filter(x => x.tone === "go"), soon = V.filter(x => x.tone === "soon" && x.g.key === "A" && (x.okS || x.okQ)), hold = V.filter(x => x.tone === "hold"), close = V.filter(x => x.tone === "close");
+  const down = V.filter(x => x.v.dir < 0).length, upN = V.filter(x => x.v.dir > 0).length;
+  const nearest = V.filter(x => x.tone === "wait" && x.gap != null && x.g.key === "A" && (x.okS || x.okQ) && !x.badCoin).sort((a, b) => a.gap - b.gap).slice(0, 3);
+  const sc = x => Math.max(x.hS && x.okS ? x.hS[2] : -9, x.hQ && x.okQ ? x.hQ[2] : -9);
+  const best = V.filter(x => !x.badCoin && x.v.dir < 0 && sc(x) > 0).sort((a, b) => sc(b) - sc(a)).slice(0, 5);
+  const bad = V.filter(x => x.badCoin);
+  const headline = go.length ? `现在可以开：${go.map(x => `<b>${x.b}</b>`).join("、")}` : close.length ? `${close.map(x => x.b).join("、")} 该平了` : soon.length ? `现在不开新单；${soon.map(x => `<b>${x.b}</b>`).join("、")} 快出信号了` : tw.cls === "gc" ? "这个周期回测不赚，只看走势，不下单" : "现在不开新单，等反弹";
   const hero = `<section class="ad-panel lab-hero"><div class="lab-big">${headline}</div>
-    <div class="lab-facts"><div><span>看哪个周期</span><b>4 小时 K 线</b><i>每 4 小时收盘判断一次，下一根 ${nextClose4h()}。5 分钟 / 30 分钟 / 1 小时回测都亏，不看。</i></div>
-    <div><span>方向</span><b>${down >= 10 ? "只做空" : down <= 3 ? "以做多为主" : "多空都有"}</b><i>${down} / 13 个币日线向下${down >= 10 ? "，不抄底、不做多" : ""}</i></div>
-    <div><span>最接近信号</span><b>${nearest.length ? nearest.map(x => `${x.b} ${pct(x.gap, 1)}`).join(" · ") : soon.length ? soon.map(x => x.b).join("、") : "—"}</b><i>还要反弹这么多才可能出做空信号（只列出了会是 A 级的币）</i></div>
-    <div><span>出信号时优先做</span><b>${(() => { const sc = x => Math.max(x.hQ ? x.hQ.avg : -9, x.hS ? x.hS.avg : -9); return V.filter(x => !x.badCoin && x.v.dir < 0).sort((a, b) => sc(b) - sc(a)).slice(0, 5).map(x => x.b).join("、") || "—"; })()}</b><i>这几个币近 1000 天做空赚得最多。${V.filter(x => x.badCoin).length ? `<b>${V.filter(x => x.badCoin).map(x => x.b).join("、")}</b> 历史上两种做空都不赚，出了信号也建议跳过或减半。` : ""}每个币只有十几到三十几笔，参考用。</i></div>
+    <div class="lab-facts"><div><span>正在看</span><b>${tf.replace("h", " 小时")} K 线 · ${coins.length} 个币</b><i>每根收盘判断一次，下一根 ${labNext(tf)}。${tf === "4h" ? "信号会推送到手机。" : "这个周期只在页面显示，不推送。"}</i></div>
+    <div><span>方向</span><b>${down >= V.length * 0.75 ? "只做空" : upN >= V.length * 0.75 ? "以做多为主" : "多空都有"}</b><i>${down} / ${V.length} 个币日线向下${down >= V.length * 0.75 ? "，不抄底、不做多" : ""}</i></div>
+    <div><span>最接近信号</span><b>${nearest.length ? nearest.map(x => `${x.b} ${pct(x.gap, 1)}`).join(" · ") : soon.length ? soon.map(x => x.b).join("、") : "—"}</b><i>还要反弹这么多才可能出能做的做空信号</i></div>
+    <div><span>出信号时优先做</span><b>${best.map(x => x.b).join("、") || "—"}</b><i>这个周期上，这几个币近 1000 天做空赚得最多。${bad.length ? `<b>${bad.map(x => x.b).join("、")}</b> 两种做空历史上都不赚，出了也建议跳过。` : ""}每个币只有几笔到几十笔，参考用。</i></div>
     ${hold.length ? `<div><span>模型持仓中</span><b>${hold.map(x => x.b).join("、")}</b><i>拿着的按止损止盈走；没开的别追</i></div>` : ""}</div>
-    ${down >= 10 && !go.length ? `<p class="why"><b>为什么 13 个都在跌却不叫你空？</b>"红线在黄线下"只说明在跌，不是进场点。在跌势里追着空，历史上 5 分钟到日线全部是亏的（反弹太猛，一下就扫止损）。做空要等它反弹一下再掉头，那时空进去止损近、空间大。所以现在就是等，不是系统坏了。</p>` : ""}</section>`;
-  // ---- 每个币一张卡
+    ${down >= V.length * 0.75 && !go.length ? `<p class="why"><b>为什么都在跌却不叫你空？</b>"红线在黄线下"只说明在跌，不是进场点。追着跌势空，历史上每个周期都亏（反弹一来就扫止损）。要等它反弹一下再掉头，那时空进去止损近、空间大。</p>` : ""}</section>`;
   const toneC = { go: "lab-go", close: "lab-close", hold: "lab-hold", soon: "lab-soon", wait: "lab-wait", no: "lab-no" };
+  const hs = (h, ok) => h && h[0] ? `${h[0]} 次 · 胜率 ${h[1]}% · 平均 ${sgn(h[2])}${ok ? "" : "（这个周期整体不赚）"}` : "—";
   const card = x => {
-    const { b, v, sw, g, price } = x, tp = rsiTarget(S.coins[b].tf["4h"].k.c, 35), z = sizePct(price, v.stop, S.prefs.risk || 1, S.prefs.maxAlloc || 40);
-    const plan = (x.tone === "go" || x.tone === "soon") && x.v.dir < 0 ? `<div class="lv"><span>进场</span><b>${x.tone === "go" ? px(price) : "等信号"}</b><i>${x.tone === "go" ? "下一根 4 小时开盘附近" : "4 小时收盘出信号后再进，不提前"}</i>
-      <span>止盈</span><b>${tp ? px(tp) : "—"}</b><i>4 小时 RSI 跌破 35</i><span>止损</span><b>${px(v.stop)}</b><i>4 小时收盘站上 EMA200（${pctTo(v.stop, price)}）</i>
-      ${z ? `<span>仓位</span><b>${z.pct.toFixed(0)}% ≈ ${Math.round(capital * z.pct / 100)} U</b><i>每笔最多亏 1%，杠杆 ≤2 倍</i>` : ""}</div>` : "";
-    const hist = [x.hS ? `现行做法 ${x.hS.n} 次 胜率 ${x.hS.win}% 平均 ${sgn(x.hS.avg)}` : "", x.hQ ? `双轨做法 ${x.hQ.n} 次 胜率 ${x.hQ.win}% 平均 ${sgn(x.hQ.avg)}` : ""].filter(Boolean).join("；");
-    return `<div class="lab-coin ${toneC[x.tone]}"><div class="lab-row1"><button data-coin="${b}" class="linkish lab-sym">${b}</button><span class="num">${px(price)}</span><span class="num ${dir(x.chg)}">${pct(x.chg, 1)}</span></div>
+    const { b, v, g, price } = x, tp = rsiTarget(x.k.c, 35), z = sizePct(price, v.stop, S.prefs.risk || 1, S.prefs.maxAlloc || 40);
+    const plan = (x.tone === "go" || x.tone === "soon") && v.dir < 0 ? `<div class="lv"><span>进场</span><b>${x.tone === "go" ? px(price) : "等信号"}</b><i>${x.tone === "go" ? `${x.which}；下一根开盘附近` : "收盘出信号后再进，不提前"}</i>
+      <span>止盈</span><b>${tp ? px(tp) : "—"}</b><i>RSI 跌破 35</i><span>止损</span><b>${px(v.stop)}</b><i>收盘站上 EMA200（${pctTo(v.stop, price)}）</i>
+      ${z ? `<span>仓位</span><b>${z.pct.toFixed(0)}% ≈ ${Math.round(capital * z.pct / 100)} U</b><i>每笔最多亏 1%，杠杆 ≤2 倍</i>` : ""}</div>` : x.tone === "go" ? `<p>双轨金叉 + 热力红柱，下一根开盘买；双轨死叉就卖（黄线 ${px(x.q.l2)}）。</p>` : "";
+    return `<div class="lab-coin ${toneC[x.tone]}"><div class="lab-row1"><button data-coin="${b}" class="linkish lab-sym">${b}</button>${x.grp === "新25" ? `<span class="chip dnone">新币</span>` : ""}<span class="num">${px(price)}</span><span class="num ${dir(x.chg)}">${pct(x.chg, 1)}</span></div>
       <div class="lab-verdict">${x.title}</div>
-      ${x.v.dir < 0 && x.tone !== "go" && x.tone !== "hold" && x.tone !== "close" ? `<div class="lab-gap">${x.gapStxt ? `<div><span>现行</span>${x.gapStxt}</div>` : ""}${x.gapQtxt ? `<div><span>双轨</span>${x.gapQtxt}</div>` : ""}<div><span>出信号时</span><b class="${g.c}">${g.k}</b> · ${g.key === "A" ? "可以做" : `不开（${g.short}）`}</div></div>` : ""}
-      ${plan}${hist ? `<p class="lab-hist">这个币近 1000 天：${hist}${x.badCoin ? " · <b>做空不赚的币</b>" : ""}</p>` : ""}</div>`;
+      ${v.dir < 0 && ["wait", "soon", "no"].includes(x.tone) ? `<div class="lab-gap">${x.gapStxt ? `<div><span>现行</span>${x.gapStxt}</div>` : ""}${x.gapQtxt ? `<div><span>双轨</span>${x.gapQtxt}</div>` : ""}<div><span>出信号时</span><b class="${g.c}">${g.k}</b> · ${g.key === "A" ? (x.okS || x.okQ ? "可以做" : "这个周期回测不赚，不做") : `不开（${g.short}）`}</div></div>` : ""}
+      ${plan}<p class="lab-hist">这个币 ${tf.replace("h", " 小时")} 近 1000 天：现行做空 ${hs(x.hS, x.okS)}；双轨做空 ${hs(x.hQ, x.okQ)}；双轨做多 ${hs(x.hL, x.okL)}${x.badCoin ? " · <b>做空不赚的币</b>" : ""}</p></div>`;
   };
-  const cards = V.map(card).join("");
-  // ---- 两条线谁更赚
-  const NOW = Date.now(), lines = [["现行反弹做空", V.flatMap(x => x.sw.trades.filter(t => t.side < 0))], ["双轨做空", V.flatMap(x => x.v.trades)], ["双轨做多", V.flatMap(x => x.q.trades)]];
-  const per = [["近 90 天", NOW - 90 * 86400000], ["近 1 年", NOW - 365 * 86400000]];
-  const cmp = `<div class="lab-cmp">${lines.map(([nm, T]) => `<div class="lab-cmpc"><b>${nm}</b>${per.map(([pn, t]) => { const s = winStats(T, t); return s ? `<div><span>${pn}</span>${s.n} 笔 · 胜率 ${s.win}% · 合计 <span class="num ${dir(s.sum)}">${sgn(s.sum)}</span></div>` : ""; }).join("")}<div><span>一笔拿多久</span>${(() => { const s = winStats(T, 0); return s ? (s.med >= 48 ? (s.med / 24).toFixed(1) + " 天" : s.med.toFixed(0) + " 小时") : "—"; })()}</div></div>`).join("")}</div>
-    <div class="ad-note">模型按规则自动进出的模拟（13 个币合计，已扣手续费），没按资金费率筛，所以比实际能做的 A 级单子差一点。看"合计"知道谁更赚，看"胜率"和"拿多久"知道谁更好拿。</div>`;
-  return `${headerHTML('双轨实验线')}${hero}
-    ${adSection('13 个币，按离信号远近排好了', '最上面的最值得看；点币名看走势图')}<div class="lab-list">${cards}</div>
-    ${adSection('两条做空线，谁更赚', '和首页现行系统并排记账')}<section class="ad-panel">${cmp}</section>
-    <details class="ad-panel"><summary><b>规则说明</b>（双轨做空，2026-11-14 回测定下）</summary><p class="why">全部看 4 小时 K 线。日线向下 + 4 小时收盘在 EMA200 下方 + 红线 EMA5 在黄线 EMA34 下方 + 最近 7 根反弹碰过黄线、RSI 到过 50 + 本根收盘跌回红线下方 → 下一根开盘开空。止盈：RSI 跌破 35；止损：收盘站上 EMA200。只做 A 级（止损距离 ≥2%、日线转空 ≤30 天、资金费率 >0）。回测 13 个币：近 1000 天胜率 ${QXS_PRIOR.r[0]}%、平均 +${QXS_PRIOR.r[1]}%；2018–2024 年 ${QXS_PRIOR.o[0]}% / +${QXS_PRIOR.o[1]}%；一笔拿 2～3 天。现行反弹做空：61% / +2.2%，拿 4 天。"金叉平空"测过更差。所有数字是历史模拟，不是盈利承诺。</p></details>`;
+  const G = LAB_BT.G[tf], f4 = a => a && a[0] ? `${a[0]} 笔 · 胜率 ${a[1]}% · 平均 <span class="num ${dir(a[2])}">${sgn(a[2])}</span> · 赚亏比 ${a[3]}` : "—";
+  const cmp = `<div class="lab-cmp">${["S", "QS", "QL"].map(ln => `<div class="lab-cmpc"><b>${LN[ln]}</b>${["老13", "新25"].map(grp => `<div class="lab-cmpg"><i>${grp === "老13" ? "主流 13 个" : "新 25 个"} ${labOk(tf, ln, grp) ? `<b class="ga">两段都赚</b>` : `<b class="gc">不稳</b>`}</i><div><span>近 1000 天</span>${f4(G[ln][grp][0])}</div><div><span>更早</span>${f4(G[ln][grp][1])}</div></div>`).join("")}</div>`).join("")}</div>
+    <div class="ad-note">回测：38 个币 1 小时 K 线合成各周期，2018 年起（新币从上市起），已扣手续费 0.1%、滑点 0.05%、真实资金费；做空只算 A 级。"两段都赚"= 近 1000 天平均 >0 且赚亏比 >1.1、更早那段也 >0；只有两段都赚的线，信号才标"可以做"。</div>`;
+  return `${headerHTML('双轨实验线')}${sw}${hero}
+    ${adSection(`${coins.length} 个币，按离信号远近排好了`, '最上面的最值得看；点币名看走势图')}<div class="lab-list">${V.map(card).join("")}</div>${missing ? `<p class="why">${coins.filter(b => !V.some(x => x.b === b)).join("、")} 还在加载，或者交易所没给到足够的 K 线，暂时不显示。</p>` : ""}
+    ${adSection(`${tf.replace("h", " 小时")}周期，三条线回测成绩`, '切换上面的周期看别的周期')}<section class="ad-panel">${cmp}</section>
+    <details class="ad-panel"><summary><b>规则说明</b></summary><p class="why">三条线在任何周期规则都一样（指标按根数算，和你在图上切周期一样）。现行反弹做空：日线向下 + 收盘在 EMA200 下方 + RSI 从 60 以上回落开空。双轨做空：红线 EMA5 在黄线 EMA34 下方，最近 7 根反弹碰过黄线、RSI 到过 50，本根收盘跌回红线下开空。两种做空都是 RSI 跌破 35 止盈、收盘站上 EMA200 止损，只做 A 级（止损距离 ≥2%、日线转空 ≤30 天、资金费率 >0）。双轨做多：金叉 + 热力红柱买，死叉卖。30 分钟没做：1 小时已经不赚，周期更短手续费占比更大。所有数字是历史模拟，不是盈利承诺。</p></details>`;
 }
 
 function pooled(side) {
@@ -2101,6 +2150,8 @@ document.addEventListener("click", e => {
     }, () => { S.watchMsg = `找不到 ${b}/USDT，确认一下币名。`; render(); });
   }
   else if (d.watchDel) { S.watch = S.watch.filter(x => x !== d.watchDel); save("watch", S.watch); delete S.coins[d.watchDel]; S.view = null; render(); }
+  else if (d.labtf) { S.labTf = d.labtf; save("labTf", S.labTf); render(); }
+  else if (d.labscope) { S.labScope = d.labscope; save("labScope", S.labScope); render(); }
   else if (d.ctf) { CH.tf = d.ctf; save("ctf", CH.tf); render(); }
   else if (d.back) { S.view = null; render(); window.scrollTo(0, 0); }
   else if (d.tf) { S.tf = d.tf; save("tf", S.tf); render(); }

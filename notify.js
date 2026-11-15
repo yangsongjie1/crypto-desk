@@ -520,7 +520,7 @@ async function push(title, body, important) {
   for (const b of SYMBOLS) {
     try {
       const short = SHORT_SET.includes(b);
-      const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h", short ? HISTORY["4h"] : 3); used.add(s1); used.add(s4);
+      const [r1, s1] = await klines(b, "1d"), [r4, s4] = await klines(b, "4h", short ? HISTORY["4h"] : 1000); used.add(s1); used.add(s4);   // 新币也拉 4 小时：双轨做多扩展币（2026-11-15）
       const k1 = toK(r1, "1d"), price = +r4[r4.length - 1][4];
       let v = null, q = null, qs = null;
       if (short) {
@@ -530,7 +530,8 @@ async function push(title, body, important) {
         q = qxCalc(k4);   // 4 小时双轨做多（2026-11-11 起），只在 13 个主流币上跑
         qs = qxsCalc(k4, k1); if (qs.dir > 0) Object.assign(qs, { action: "观望", side: 0 });   // 双轨做空实验线（2026-11-14 起）
       }
-      R[b] = { v, q, qs, t: trendCalc(k1, true), price: v ? v.price : price, f: short ? await funding(b) : null };
+      const qe = !short && r4.length >= 300 ? qxCalc(toK(r4, "4h")) : null;   // 新 25 个币只跑双轨做多（回测：4 小时两段都赚；两种做空在新币上不稳，不推）
+      R[b] = { v, q, qs, qe, t: trendCalc(k1, true), price: v ? v.price : price, f: short ? await funding(b) : null };
     } catch (e) { console.log(b, "拉取失败：", e.message); }
   }
   // 2) 策略状态灯（最近 30 笔）
@@ -599,6 +600,7 @@ async function push(title, body, important) {
   ].join("\n");
   const trendInit = !state.trendInit; state.trendInit = 1;
   const qxInit = !state.qxInit; state.qxInit = 1;   // 第一次跑 4 小时双轨：只记下历史信号，不补推
+  const qeInit = !state.qeInit; state.qeInit = 1;   // 第一次跑新币双轨做多：只记下历史信号，不补推
   const qsInit = !state.qsInit; state.qsInit = 1;   // 第一次跑双轨做空实验线：只记下历史信号，不补推
   // 3) 逐个币生成推送
   const trendKnown = new Set(state.trendCoins || (state.trendInit ? SHORT_SET : []));
@@ -715,6 +717,28 @@ async function push(title, body, important) {
           body: `离场原因：${e.whyW}\n离场价 ${fmt(e.price)}，现价 ${fmt(p)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}\n只平空，不反手做多` });
       }
     });
+    // 新 25 个币的 4 小时双轨做多（实验线·扩展币，2026-11-15 起）
+    const qe = R[b].qe;
+    if (qe) qe.ev.forEach((e, idx) => {
+      if (e.act === "金叉无红柱") return;
+      const key = `${b}|qxe|${e.t}|${e.act}`, NOW5 = Date.now();
+      if (NOW5 - e.t > 86400000 || sent.has(key)) return;
+      sent.add(key);
+      if (first || qeInit) return;
+      const lateH = (NOW5 - e.t) / 3600000, late = lateH >= 1.5 ? `（延迟 ${Math.round(lateH)} 小时）` : "", p = px;
+      if (e.act === "开多") {
+        if (qe.ev.slice(idx + 1).some(x => x.act === "平多")) return;
+        const moved = p / e.price - 1;
+        events.push({ coin: b, kind: "qopen", price: p, sigPrice: e.price, sig: e.t, important: true, title: `${b} 开多 · 双轨实验线（新币）${late}`,
+          body: `${entryLine(p, `4小时收盘 ${fmt(e.price)} 双轨金叉，热力红柱 ${mmFmt(e.mm)}`, late ? `，${moved >= 0 ? "已涨" : "已跌"} ${Math.abs(moved * 100).toFixed(1)}%，1 天内仍可跟进` : "")}\n离场：4小时双轨死叉就卖，不设固定止损价。黄线现在 ${fmt(qe.l2)}（${pctS(qe.l2 / p - 1)}）\n${sizeLine("qx", p, qe.l2, "现货或 1 倍", R[b].t ? R[b].t.vol20 : null)}\n这是扩展的新币（不在主流 13 个里）。回测新 25 个币：近 1000 天平均每笔 +0.9%、赚亏比 1.24，更早 +2.4%、1.60；胜率约 1/4，靠少数大波段赚钱。比主流币弱，仓位可以再小一点。` });
+      } else {
+        const opened = [...qe.ev.slice(0, idx)].reverse().find(x => x.act === "开多");
+        if (opened && !sentBefore.has(`${b}|qxe|${opened.t}|开多`) && NOW5 - opened.t < 86400000) return;
+        const gain = opened ? e.price / opened.price - 1 - 2 * 0.001 : null;
+        events.push({ coin: b, kind: "qclose", price: p, sigPrice: e.price, sig: e.t, important: true, title: `${b} 平多 · 双轨实验线（新币）${late}`,
+          body: `离场原因：4小时双轨死叉\n离场价 ${fmt(e.price)}，现价 ${fmt(p)}${gain != null ? `\n这笔约 ${pctS(gain)}（已扣手续费，按信号价）` : ""}` });
+      }
+    });
     // 日线趋势做多：查最近 2 天的信号
     if (t) t.ev.forEach((e, idx) => {
       const key = `${b}|trend|${e.t}|${e.act}`, NOW2 = Date.now();
@@ -801,9 +825,11 @@ async function push(title, body, important) {
     `1）做空只推 A 级（止损 ≥2%、日线转空 ≤30 天、资金费率不为负）。B、C 级不再推送开空，网页上仍能看到、标为"观察，不开"。回测：A 级做空 2018 年起三段都赚；B 级是拖后腿的那部分。\n2）空单合计名义不超过本金 40%：开空推送里会列出模型里还持有的空单各占多少，网页「可以开仓」按你标记的持仓精确算，到上限就写"这笔不开"。\n3）策略状态灯只作提示，不再自动减半 / 暂停（回测：按灯减仓反而少赚）。\n做多两套不变。`, false);
   if (!first && state.v7 && !state.v8) await push("盯盘已调整：做空门槛放宽 + 每日状态",
     `1）做空反弹门槛从 RSI 65 放宽到 60：信号大约多八成，回测两段数据总收益都更高（单笔平均会低一些）。A 级的其他条件不变（止损 ≥2%、转空 ≤30 天、资金费率不为负）。\n2）B / C 级信号改成发一条普通提醒「只观察不开」，不再完全静音。\n3）每天第一次运行发一条「每日状态」：没信号也发，写清为什么没信号、程序跑了几次。哪天没收到，就是程序没在跑。\n4）程序中断超过 10 小时，恢复时会提醒。`, false);
+  if (!first && state.v9 && !state.v10) await push("双轨实验线：可切周期 + 扩到 38 个币",
+    `网页「双轨实验」页可以切 1 / 2 / 3 / 4 小时和"主流 13 个 / 全部 38 个"。回测：1、2 小时三条线都不赚（只看不做）；3 小时能赚但比 4 小时弱；4 小时最好。\n新 25 个币在 4 小时上只有双轨做多两段都赚，所以只加这一条推送，标"双轨实验线（新币）"；两种做空在新币上不稳，不推。推送仍然只看 4 小时。`, false);
   if (!first && state.v8 && !state.v9) await push("新增：双轨实验线",
     `网页多了一个「双轨实验」页：同样 13 个币，"什么时候进"改用红线 EMA5 / 黄线 EMA34——日线向下时，反弹碰到黄线再跌回红线下方就开空；止盈止损和现行一样（RSI 35 / EMA200）。只做 A 级。\n回测：胜率 66%、平均每次 +0.6%、持仓 2～3 天（现行反弹做空：61%、+2.2%、4 天）。胜率高、单笔小、好拿一些。\n两条线并排记账，推送会标「双轨开空 / 双轨平空」。实验线不进首页持仓统计。`, false);
-  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.v9 = 1; state.trendCoins = SYMBOLS;
+  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.v9 = 1; state.v10 = 1; state.trendCoins = SYMBOLS;
   // 每日状态单独发（不并进汇总），其余超过 6 条才合并
   const dg = events.filter(e => e.kind === "digest"), rest = events.filter(e => e.kind !== "digest");
   if (rest.length > 6) await push(`${rest.length} 条新提醒`, rest.map(e => e.title).join("\n"), true);
