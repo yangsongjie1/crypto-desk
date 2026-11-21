@@ -1602,6 +1602,10 @@ function researchPage(){
   return `${headerHTML('策略研究与实验中心')}<div class="ad-eyebrow">RESEARCH / STRATEGY DISCOVERY</div><div class="ad-sub">研究更多机会，但所有候选均为“待验证”，不能直接变成买卖信号。</div>
     <div class="ad-hero" style="margin-top:17px"><div class="ad-hero-head"><span class="ad-pill neutral">策略实验室</span><span class="ad-small">从想法到上线，必须有证据</span></div><h2>不断发现策略，不断验证；不是不断叠加指标</h2><p>优秀策略的关键不是指标数量，而是：明确市场假设、稳定的净期望、合理回撤、跨时期表现、真实可执行性。现阶段你已有两套策略；想测新的想法，直接跟 Claude 说，规则先定好再跑老数据和近 1000 天两段。</p><div class="ad-hero-foot"><div class="ad-mini"><label>现有执行策略</label><b>2 套</b><small>保留原始引擎</small></div><div class="ad-mini"><label>待验证研究方向</label><b>${cards.length} 套</b><small>非已证实盈利模型</small></div><div class="ad-mini"><label>已验证</label><b>12 项</b><small>见下方结论表</small></div><div class="ad-mini"><label>自动搜集能力</label><b>待接入服务端</b><small>HTML 本身无后台爬取</small></div></div></div>
     ${adSection('00 · 已验证结论','每项都是规则先定好、再跑老数据（2018–2024）和近 1000 天两段')}<div class="ad-panel"><div class="ad-table-scroll"><table class="ad-table"><thead><tr><th>日期</th><th>测了什么</th><th>结果</th><th>处理</th></tr></thead><tbody>${[
+      ['11-21','急跌抄底（日线向上 + 30 分钟急跌 ≥4 倍平时波动，买入持 24 小时）','38 个币两段都赚：近 1000 天每笔 +1.3% / +2.6%（主流 / 新币），更早 +2.5% / +2.8%；新币设计时没用过；组合里回撤略小、年化少 7～9 个点','已上线：第四条线，本金 10%、1 倍、最多 5 笔、−20% 灾难止损'],
+      ['11-21','其他日内规则：下跌趋势急涨就空、亚洲区间突破、RSI2 超短回调','近 1000 天都亏或接近 0（急涨就空每笔 −1.0%）','不上线'],
+      ['11-21','分时段成交量判断涨跌（4 / 3 小时一段，量价 + 主动买卖，约 1600 种组合）','只能预测波动大小，方向五五开；扣手续费都不够','不上线'],
+      ['11-21','量能风险灯、FOMC / CPI 事件日减仓、赫斯特 / 熵市况过滤','都能看出"波动要变大"，但做成减仓规则两段都更差（趋势系统靠大波动赚钱）','不上线'],
       ['11-03','1 小时做空 vs 4 小时做空','1 小时两段都亏','不上线'],
       ['11-07','趋势做多按波动率定仓','同样仓位下回撤更小（近 1000 天 −35% 对 −43%）','已上线'],
       ['11-07','支撑收复做多','胜率 61% 但止盈太近，近 1000 天 PF 0.83','不上线'],
@@ -2091,7 +2095,7 @@ function updateBadge() {
   const n = S.tab === "msgs" ? 0 : unseen();
   btn.innerHTML = `◉ <span>消息中心</span>${n ? `<span class="badge">${n > 99 ? "99+" : n}</span>` : ""}`;
 }
-const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"], carry: ["套利", "dnone"], watch: ["只观察", "dnone"], digest: ["每日状态", "dnone"], ops: ["程序", "loss"], guard: ["持仓守护", "kfollow"], qopen: ["双轨开多", "win"], qclose: ["双轨平多", "loss"], qsopen: ["双轨开空", "ddown"], qsclose: ["双轨平空", "loss"], vol: ["大波动", "kfollow"] };
+const KIND = { open: ["开空", "ddown"], close: ["平空", "loss"], follow: ["跟进", "kfollow"], dir: ["日线方向", "dnone"], topen: ["趋势开多", "win"], tclose: ["趋势平多", "loss"], health: ["策略状态", "dnone"], carry: ["套利", "dnone"], watch: ["只观察", "dnone"], digest: ["每日状态", "dnone"], ops: ["程序", "loss"], guard: ["持仓守护", "kfollow"], qopen: ["双轨开多", "win"], qclose: ["双轨平多", "loss"], qsopen: ["双轨开空", "ddown"], qsclose: ["双轨平空", "loss"], vol: ["大波动", "kfollow"], dopen: ["急跌抄底", "win"], dclose: ["抄底平多", "loss"] };
 function msgsPage() {
   const list = (S.alerts || []).slice().sort((x, y) => y.t - x.t), seen = S.seenPrev ?? S.seenAt;
   let day = "", html = "";
