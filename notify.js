@@ -167,7 +167,7 @@ const PAGE = "https://yangsongjie1.github.io/crypto-desk/";
 const SHORT_SET = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "LTC", "DOT", "TRX", "BCH"], QUOTE = "USDT";
 const SYMBOLS = [...SHORT_SET, "ZEC", "NEAR", "SUI", "PEPE", "WLD", "UNI", "QNT", "AAVE", "FET", "LIT", "INJ", "ARB", "FIL", "HBAR", "TIA", "XLM", "SAND", "APT", "GTC", "RLC", "ICP", "OP", "DASH", "OGN", "SEI"];
 const HISTORY = { "1d": 1000, "4h": 2000 };
-const STEP = { "1d": 86400000, "4h": 14400000, "1h": 3600000, "30m": 1800000 };
+const STEP = { "1d": 86400000, "4h": 14400000, "1h": 3600000 };
 const fmt = p => p >= 1000 ? p.toFixed(2) : p >= 10 ? p.toFixed(3) : p >= 1 ? p.toFixed(4) : p.toFixed(5);
 const sgn = x => (x >= 0 ? "+" : "") + x.toFixed(1) + "%";
 async function getJSON(url) {
@@ -188,7 +188,7 @@ async function binanceLike(host, b, tf, total) {
 }
 const SOURCES = [
   { name: "Bybit", async klines(b, tf, total) {
-      const iv = { "1d": "D", "4h": "240", "1h": "60", "30m": "30" }[tf], out = new Map(); let end = Date.now();
+      const iv = { "1d": "D", "4h": "240", "1h": "60" }[tf], out = new Map(); let end = Date.now();
       for (let p = 0; p < 8 && out.size < total; p++) {
         const j = await getJSON(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${b}${QUOTE}&interval=${iv}&end=${end}&limit=1000`);
         if (j.retCode !== 0) throw new Error(j.retMsg); const list = j.result.list; if (!list.length) break;
@@ -198,7 +198,7 @@ const SOURCES = [
       return rows(out, total);
     } },
   { name: "OKX", async klines(b, tf, total) {
-      const bar = { "1d": "1Dutc", "4h": "4H", "1h": "1H", "30m": "30m" }[tf], out = new Map(); let after = "";
+      const bar = { "1d": "1Dutc", "4h": "4H", "1h": "1H" }[tf], out = new Map(); let after = "";
       for (let p = 0; p < Math.ceil(total / 100) + 2 && out.size < total; p++) {
         const j = await getJSON(`https://www.okx.com/api/v5/market/history-candles?instId=${b}-${QUOTE}&bar=${bar}&limit=100${after ? "&after=" + after : ""}`);
         if (j.code !== "0") throw new Error(j.msg); if (!j.data.length) break;
@@ -551,11 +551,7 @@ async function push(title, body, important, link) {
         qs = qxsCalc(k4, k1); if (qs.dir > 0) Object.assign(qs, { action: "观望", side: 0 });   // 双轨做空实验线（2026-11-14 起）
       }
       const qe = !short && r4.length >= 300 ? qxCalc(toK(r4, "4h")) : null;   // 新 25 个币只跑双轨做多（回测：4 小时两段都赚；两种做空在新币上不稳，不推）
-      // 前一日日线向上（急跌抄底用，2026-11-21）：最近一根已收盘日线 收盘 > EMA200 且 EMA20 > EMA50
-      const emaD = (x, n) => { const a = 2 / (n + 1), o = new Float64Array(x.length); o[0] = x[0]; for (let i = 1; i < x.length; i++) o[i] = a * x[i] + (1 - a) * o[i - 1]; return o; };
-      const L1 = k1.c.length - 1, d200 = emaD(k1.c, 200), d20 = emaD(k1.c, 20), d50 = emaD(k1.c, 50);
-      const up = L1 >= 200 && k1.c[L1] > d200[L1] && d20[L1] > d50[L1];
-      R[b] = { v, q, qs, qe, up, t: trendCalc(k1, true), price: v ? v.price : price, f: short ? await funding(b) : null };
+      R[b] = { v, q, qs, qe, t: trendCalc(k1, true), price: v ? v.price : price, f: short ? await funding(b) : null };
     } catch (e) { console.log(b, "拉取失败：", e.message); }
   }
   // 2) 策略状态灯（最近 30 笔）
@@ -828,7 +824,7 @@ async function push(title, body, important, link) {
       const lines = [
         `${mkt}：BTC ${btc ? fmt(btc.price) : "—"}，日线${btc ? dW(btc.dir) : "—"}；13 个主流币里 ${down} 个日线向下、${up} 个向上。`,
         shortLine + (heldS.length > heldA.length ? `另有 ${heldS.length - heldA.length} 笔 B / C 级只观察。` : "") + (negF ? `${negF} 个币资金费率为负，这些币出信号也只算 B 级（观察）。` : ""),
-        `做多：日线趋势持多 ${tOpen} 个，4 小时双轨持多 ${qOpen} 个${!tOpen && !qOpen ? "；等日线突破 20 日新高，或 4 小时双轨金叉 + 红柱" : ""}。急跌抄底：${Object.keys(state.dip || {}).length ? `模型持有 ${Object.keys(state.dip).join("、")}，买入满 24 小时卖` : `38 个币里日线向上的有 ${SYMBOLS.filter(b => R[b] && R[b].up).length} 个，只在这些币上等 30 分钟急跌`}。`,
+        `做多：日线趋势持多 ${tOpen} 个，4 小时双轨持多 ${qOpen} 个${!tOpen && !qOpen ? "；等日线突破 20 日新高，或 4 小时双轨金叉 + 红柱" : ""}。`,
         (r24.length < 2 ? `程序：运行记录今天开始记，明天起这里会写过去 24 小时跑了几次。` : `程序：过去 24 小时跑了 ${r24.length} 次，最长间隔 ${maxGap.toFixed(1)} 小时${maxGap > 4.5 ? "（GitHub 延迟偏大，信号可能晚到，请以网页为准）" : ""}。`) + `哪天没收到这条，就是程序没在跑。`,
       ];
       events.push({ coin: null, kind: "digest", important: false, title: `每日状态 ${day.slice(5)}：${mkt}，${heldA.length ? `持有空单 ${heldA.length} 笔` : hot.length ? `${hot.length} 个币快出做空信号` : tOpen + qOpen ? `持多 ${tOpen + qOpen} 个` : "现在没有信号"}`, body: lines.join("\n") });
@@ -896,73 +892,44 @@ async function push(title, body, important, link) {
       events.push(merged);
     }
   }
-
-  // ===== 急跌抄底（第四条线，2026-11-21 回测，桌面/BTC/crypto-desk-日内短线研究）=====
-  // 规则：前一日日线向上（收盘 > EMA200 且 EMA20 > EMA50）+ 30 分钟跌幅 ≥ 4 倍平时 30 分钟波动（σ = 过去 1440 根 30 分钟涨跌的标准差，不含这根）
-  //       → 下一根开盘买，持 24 小时卖；不设止盈止损（交易所挂 −20% 灾难止损防崩盘）
-  // 回测（38 币，2018 → 2026-11-20，扣来回 0.2%）：30 分钟 主流 13 近 1000 天每笔 +1.29%、更早 +2.45%；新 25 +2.62% / +2.78%；赚亏比 1.76～2.23
-  //   1 小时版结果相同；新 25 个币设计时没用过（样本外）；基准"日线向上随便哪个小时买"只有 +0.16% / +0.46%
-  // 组合（每笔 10%、最多 5 笔、1 倍）：现行 70% + 抄底 30% 回撤 −18→−16%（近 1000 天）/ −18→−13%（更早），夏普 1.54→1.60 / 1.77→1.85，年化少 7～9 个百分点
-  // 止损越紧越差（接飞刀型，靠扛过急跌后的反弹）；最差一笔 −53%（LINK 2020-03-12）
-  // BTC 日线不向上时（事后补测，只提示不改规则）：主流 13 近 1000 天每笔只有 +0.1%～+0.2%，BTC 向上时 +1.4%
-  const DIP_K = 4, DIP_N = 1440, DIP_HOLD = 24 * 3600000, DIP_MAX = 5, DIP_PCT = 10, DIP_STOP = 0.20, M30 = 1800000;
-  const dipInit = !state.dipInit; state.dipInit = 1;   // 第一次跑：只记下信号，不补推
-  state.dip = state.dip || {};
-  {
-    const NOWP = Date.now(), mnl = t => new Date(t).toLocaleString("zh-CN", { timeZone: "Asia/Manila", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
-    for (const [b, d] of Object.entries(state.dip)) {   // 已持有：满 24 小时卖，或跌破灾难止损
-      const p = R[b] ? R[b].price : null; if (!p) continue;
-      const due = NOWP >= d.entryT + DIP_HOLD, hit = p <= d.entry * (1 - DIP_STOP);
-      if (!due && !hit) continue;
-      delete state.dip[b];
+  // ===== AlgoAlpha 实验线（2026-11-21，使用者决定实盘试验）=====
+  // 信号来自 TradingView：AlgoAlpha Smart Signals Assistant + Strategy Builder（4h，多空反手），闭源，这里算不出来；
+  // TradingView 警报 webhook → ntfy.sh 主题（公开中转，消息保留约 12 小时）→ 这里每 15 分钟取一次 → Bark 推送 + 写进 state.json 给网页看
+  try {
+    const AA_TOPIC = "cdesk-aa-6f2dbcab1159";
+    state.aa = state.aa || { pos: {}, log: [], seen: [] };
+    const seenAA = new Set(state.aa.seen || []);
+    const txt = await (await fetch(`https://ntfy.sh/${AA_TOPIC}/json?poll=1&since=${state.aa.since || "12h"}`)).text();
+    const msgs = txt.split("\n").filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(m => m && m.event === "message").sort((a, b) => a.time - b.time);
+    const coinOf = m => { try { return String(JSON.parse(m.message).s || ""); } catch (e) { return ""; } };
+    const posOf = m => { try { return String(JSON.parse(m.message).p || "").toLowerCase(); } catch (e) { return ""; } };
+    for (const [i, m] of msgs.entries()) {
+      state.aa.since = String(m.time);
+      // 反手时 TradingView 可能先发一条"平仓（flat）"再发一条"开新仓"：2 分钟内同币还有下一条就跳过这条 flat
+      if (posOf(m) === "flat" && msgs.slice(i + 1).some(n => coinOf(n) === coinOf(m) && n.time - m.time <= 120)) { seenAA.add(m.id); continue; }
+      if (seenAA.has(m.id)) continue; seenAA.add(m.id);
+      let d; try { d = JSON.parse(m.message); } catch (e) { console.log("AlgoAlpha 消息不是 JSON：", m.message); continue; }
+      const coin = String(d.s || "").replace(/^BINANCE:/, "").replace(/USDT\.P$|USDT$/, "").replace(/^1000/, "");
+      if (!coin) continue;
+      const pos = String(d.p || "").toLowerCase(), act = String(d.a || "").toLowerCase(), px = Number(d.px) || null;
+      const prev = state.aa.pos[coin] || null;
+      const side = pos === "long" ? 1 : pos === "short" ? -1 : 0;
+      if (prev && prev.side === side) continue;          // 同一次反手会有平仓 + 开仓两条成交，只认最终方向
+      let pnl = null; if (prev && prev.side && prev.px && px) pnl = prev.side * (px / prev.px - 1);
+      state.aa.pos[coin] = { side, px, t: m.time * 1000 };
+      state.aa.log.push({ t: m.time * 1000, coin, side, px, pnl });
       if (first) continue;
-      const gain = (hit && !due ? 1 - DIP_STOP : p / d.entry) - 1 - 0.002;
-      events.push({ coin: b, kind: "dclose", price: p, important: true, title: `${b} 平多 · 急跌抄底${hit && !due ? "（灾难止损）" : ""}`,
-        body: `离场原因：${due ? "买入满 24 小时，按规则卖出（不管赚亏）" : `跌破灾难止损 ${fmt(d.entry * (1 - DIP_STOP))}，交易所的止损单应该已经成交`}\n买入参考价 ${fmt(d.entry)}，现价 ${fmt(p)}，这笔约 ${pctS(gain)}（已扣手续费）` + closeCard(b, 1), link: BINANCE(b) });
+      const word = side > 0 ? "翻多：平空开多" : side < 0 ? "翻空：平多开空" : "平仓：空仓等待";
+      events.push({ coin, kind: "aa", important: true, link: BINANCE(coin),
+        title: `${coin} AlgoAlpha实验 · ${word}`,
+        body: `TradingView AlgoAlpha 4 小时信号：${act === "buy" ? "买入" : "卖出"}，现在应${side > 0 ? "持多" : side < 0 ? "持空" : "空仓"}，成交参考价 ${px ? fmt(px) : "—"}。` +
+          (pnl != null ? `\n上一笔${prev.side > 0 ? "多单" : "空单"}（${fmt(prev.px)} 进）按这个价算 ${pctS(pnl)}。` : "") +
+          `\n实验线：信号反转就平仓反手，没有固定止损；方向不对按你自己的止损走。和系统其他信号分开记账。` });
     }
-    const cands = [];
-    for (const b of SYMBOLS) {
-      const x = R[b]; if (!x || !x.up) continue;   // 只看前一日日线向上的币
-      try {
-        const [r30, s30] = await klines(b, "30m", 1500); used.add(s30);
-        const closed = r30.filter(z => z[0] + M30 <= NOWP); if (closed.length < 1000) continue;
-        const c = closed.map(z => z[4]), ret = c.map((v, i) => i ? v / c[i - 1] - 1 : NaN);
-        for (let j = Math.max(c.length - 4, 961); j < c.length; j++) {   // 最近 4 根（2 小时内）都查，定时任务晚了也不漏
-          const w = ret.slice(Math.max(1, j - DIP_N), j), m = w.reduce((a, v) => a + v, 0) / w.length;
-          const sd = Math.sqrt(w.reduce((a, v) => a + (v - m) ** 2, 0) / (w.length - 1));
-          if (!(sd > 0) || ret[j] > -DIP_K * sd) continue;
-          const key = `${b}|dip|${closed[j][0]}`; if (sent.has(key)) continue;
-          sent.add(key);
-          const nx = r30.find(z => z[0] === closed[j][0] + M30);
-          cands.push({ b, t: closed[j][0], r: ret[j], z: -ret[j] / sd, sigClose: c[j], entryT: closed[j][0] + M30, entry: nx ? nx[1] : x.price });
-        }
-      } catch (e) { console.log(b, "急跌抄底检查失败：", e.message); }
-    }
-    cands.sort((a, c) => a.t - c.t || c.z - a.z);
-    for (const e of cands) {
-      if (first || dipInit) continue;
-      const b = e.b, x = R[b], p = x.price, lateH = (NOWP - e.entryT) / 3600000;
-      if (state.dip[b] || lateH > 4) { console.log(b, "急跌抄底：已持有或已过 4 小时，跳过"); continue; }
-      const n = Object.keys(state.dip).length, btcUp = R.BTC && R.BTC.up, late = lateH >= 1 ? `（延迟 ${Math.round(lateH * 10) / 10} 小时）` : "";
-      const moved = p / e.entry - 1, head = `30 分钟收盘 ${fmt(e.sigClose)}：这 30 分钟跌了 ${Math.abs(e.r * 100).toFixed(1)}%，是平时 30 分钟波动的 ${e.z.toFixed(1)} 倍；前一日日线向上`;
-      if (n >= DIP_MAX) {
-        events.push({ coin: b, kind: "watch", price: p, important: false, title: `${b} 急跌抄底信号 · 模型已满 ${DIP_MAX} 笔，只观察`, body: `${head}。\n模型已经同时拿着 ${Object.keys(state.dip).join("、")}，回测规定最多 5 笔，这笔不开。` });
-        continue;
-      }
-      state.dip[b] = { entry: e.entry, entryT: e.entryT, t: e.t };
-      events.push({ coin: b, kind: "dopen", price: p, important: true, title: `${b} 开多 · 急跌抄底${late}`,
-        body: `进场：≈ ${fmt(p)}（${head}${late ? `；比下一根开盘价 ${fmt(e.entry)} ${moved >= 0 ? "高" : "低"} ${Math.abs(moved * 100).toFixed(1)}%` : ""}）\n` +
-          `离场：买入满 24 小时就卖（约马尼拉 ${mnl(e.entryT + DIP_HOLD)}），会推送平多；不设止盈价，中途不加仓摊平\n` +
-          `灾难止损：${fmt(e.entry * (1 - DIP_STOP))}（−20%），挂在交易所，只防崩盘；回测里止损放近了反而更差\n` +
-          `仓位：本金的 ${DIP_PCT}%，1 倍不加杠杆；模型最多同时 ${DIP_MAX} 笔（加上这笔共 ${n + 1} 笔）\n` +
-          (btcUp ? "" : `⚠ BTC 日线现在不是向上：回测里这种时候主流币抄底明显弱（近 1000 天每笔约 +0.1%，BTC 向上时 +1.4%），可以减半或跳过\n`) +
-          `回测（30 分钟，38 个币，扣手续费）：近 1000 天每笔 +1.3%～+2.6%、胜率约 55%、赚亏比约 1.8～2.0。买完常常还会再跌一段才反弹，这是正常的。` +
-          orderCard({ coin: b, side: 1, price: p, pct: DIP_PCT, lev: 1, guard: e.entry * (1 - DIP_STOP), sysStopTxt: "系统按时间出场：买入满 24 小时卖，看平多推送" }),
-        link: BINANCE(b) });
-    }
-  }
-  if (!first && state.v12 && !state.v13) await push("新增第四条线：急跌抄底",
-    `38 个币里，前一日日线向上的币如果 30 分钟内急跌到平时波动的 4 倍以上，就推"开多 · 急跌抄底"：本金 10%、1 倍，买入满 24 小时卖（会推送平多），交易所挂 −20% 灾难止损。\n回测（2018 年起，扣手续费）：近 1000 天每笔 +1.3%～+2.6%，两段数据、新老币池都成立；加进组合后回撤略小、年化少几个点。\n它只在上涨行情里出信号，现在多数币日线向下，所以短期内可能很少看到。`, false);
+    state.aa.seen = [...seenAA].slice(-300); state.aa.log = state.aa.log.slice(-500);
+  } catch (e) { console.log("AlgoAlpha 实验线读取失败：", e.message); }
+  if (!first && state.v12 && !state.v13) await push("新增：AlgoAlpha 实验线",
+    `TradingView 上付费的 AlgoAlpha（Smart Signals Assistant）4 小时信号接进来了：38 个币，多空都做，信号反转就平仓反手。\n推送标「AlgoAlpha实验」，网页多了「AlgoAlpha实验」页，看每个币现在该持多还是持空、从哪个价进的、浮盈多少。\n回测（2022 年起，全仓、扣手续费，没算资金费）：BTC +27%、ETH +183%、SOL +3655%，回撤 50%～70%，靠你盯盘止损。和系统其他信号分开记账。`, false);
   if (!first && state.v11 && !state.v12) await push("推送升级：点开就能下单",
     `开仓 / 平仓推送现在多了一张"下单卡"：币安合约的数量、名义金额、保证金、限价、保险止损都算好了；点推送直接打开币安这个币的合约页。\n保险止损放在系统止损外面 2%，只防睡着时暴涨暴跌；系统止损仍按 4 小时 / 日线收盘判断，看平仓推送。\n${CAPITAL_SET ? `按本金 ${CAPITAL} U 计算。` : "现在按默认本金 1000 U 计算，在 GitHub 设 CAPITAL 变量就能改成你的实际本金。"}`, false);
   if (!first && state.v10 && !state.v11) await push("新增：主流币大波动提醒",
