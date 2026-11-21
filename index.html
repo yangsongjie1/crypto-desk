@@ -303,6 +303,7 @@ nav button[aria-current="page"] {color:#e5f2ff;background:#1c324c;box-shadow:ins
 @media(max-width:1150px){body{padding-left:210px}nav{width:193px}.ad-columns{grid-template-columns:1fr}.ad-kpis{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){body{padding:0 11px 90px}.wrap{padding:0 2px}nav{top:auto;right:0;bottom:0;width:100%;height:auto;flex-direction:row;padding:5px 4px env(safe-area-inset-bottom,5px);border-top:1px solid var(--line);border-right:0;gap:0}nav button{flex:1;display:block;text-align:center;padding:9px 2px;font-size:16px}nav button span{display:block;font-size:10px;margin-top:2px}nav button[aria-current="page"]{box-shadow:inset 0 2px 0 var(--accent)}.navbrand,.navfoot{display:none}header{padding:19px 3px 15px}header h1{font-size:21px}.ad-hero{padding:18px}.ad-hero h2{font-size:20px}.ad-hero-foot{display:grid;grid-template-columns:repeat(2,1fr)}.ad-mini{min-width:0}.ad-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ad-kpi{padding:13px}.ad-kpi strong{font-size:22px}.ad-queue,.ad-strats,.ad-research-grid,.ad-framework,.ad-compare{grid-template-columns:1fr}.ad-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.ad-panel{padding:12px}.ad-table{min-width:550px}.ad-topline{align-items:flex-start}}
 
+.bn-btn{display:inline-block;margin:0 0 6px;padding:8px 14px;border-radius:10px;background:#F0B90B;color:#1E2026;font-weight:700;text-decoration:none}.bn-tip{font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.5}
 .linkish{background:none;border:0;padding:0;color:inherit;cursor:pointer;font:inherit}
 .lab-hero{padding:18px}.lab-big{font-size:22px;font-weight:700;line-height:1.35;margin-bottom:14px}
 .lab-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:8px}.lab-facts>div{background:var(--sunk);border-radius:10px;padding:10px 12px}.lab-facts span{display:block;font-size:12px;color:var(--muted)}.lab-facts b{display:block;font-size:16px;margin:2px 0}.lab-facts i{font-style:normal;font-size:12px;color:var(--muted);line-height:1.5}
@@ -1310,6 +1311,10 @@ function shortUsedPct(except) {
   }
   return used;
 }
+// 去币安下单（2026-11-21）：打开币安该币 U 本位合约页；保险止损 = 系统止损外 2%～3%（多单双轨：黄线下 5%），只防睡着时暴涨暴跌
+function binanceBtn(b, side, guard) {
+  return `<a class="bn-btn" href="https://www.binance.com/zh-CN/futures/${b}USDT" target="_blank" rel="noopener">去币安${side < 0 ? "开空" : "开多"} ${b}USDT ›</a><p class="bn-tip">下完单顺手挂一张${side < 0 ? "买入" : "卖出"}止损市价单当保险，触发价 <b class="num">${px(guard)}</b>：系统止损按收盘判断，这张只防睡着时暴${side < 0 ? "涨" : "跌"}。</p>`;
+}
 function planBox(b, sys, side, entry, stop, tpHTML, vol) {
   const { capital, risk, maxAlloc } = S.prefs, h = health(sys).h, dist = side < 0 ? stop - entry : entry - stop;
   if (!(dist > 0)) return `<p class="why">现价已越过止损线，不要开${sideW(side)}。</p>`;
@@ -1322,7 +1327,7 @@ function planBox(b, sys, side, entry, stop, tpHTML, vol) {
     else if (used > 0) capNote = `；加上手上的空单合计 ${(used + want).toFixed(0)}%，上限 ${SHORT_CAP}%`;
   }
   const val = qty * entry, tight = sys === "short" && dist / entry < 0.02;
-  return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
+  return `<div class="plan">${binanceBtn(b, side, sys === "short" ? stop * 1.02 : stop * 0.97)}<div><span>进场参考</span><b class="num">${px(entry)}</b></div>
     <div><span>止损</span><b class="num sl">${px(stop)}</b><i>${pctTo(stop, entry)}，${sys === "short" ? "4 小时收盘站上它就平" : "日线收盘跌破它就平"}</i></div>
     <div><span>止盈</span>${tpHTML}</div>
     ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(val)} U${sys === "short" ? `，2 倍杠杆占保证金约 ${Math.round(val / 2)} U${capNote}` : `，现货或 1 倍${zv ? `；按波动率定仓：0.5% ÷ 20 日波动 ${(zv.vol * 100).toFixed(1)}%，再 × 一半资金 = 本金的 ${zv.pct.toFixed(0)}%（日线趋势、4 小时双轨两套做多各用一半资金）` : ""}`}${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>
@@ -1333,7 +1338,7 @@ function planBox(b, sys, side, entry, stop, tpHTML, vol) {
 function qxPlan(b, entry, q, vol) {
   const { capital, maxAlloc } = S.prefs, h = health("qx").h, zv = sizeVol(vol, maxAlloc, h.factor * LONG_SPLIT);
   const qty = zv ? capital * zv.pct / 100 / entry : 0, toY = q.l2 / entry - 1;
-  return `<div class="plan"><div><span>进场参考</span><b class="num">${px(entry)}</b></div>
+  return `<div class="plan">${binanceBtn(b, 1, q.l2 * 0.95)}<div><span>进场参考</span><b class="num">${px(entry)}</b></div>
     <div><span>离场</span><b>4 小时双轨死叉</b><i>红线跌破黄线超过 0.1 倍波动就卖，不设固定止损价。黄线现在 ${px(q.l2)}（${pct(toY, 1)}），收盘跌到黄线附近要留意</i></div>
     <div><span>止盈</span><b>不设目标价</b><i>等死叉才卖，让利润跑</i></div>
     ${qty > 0 ? `<div><span>建议仓位</span><b class="num">${fmtQty(qty)} ${b}</b><i>≈ ${Math.round(qty * entry)} U，现货或 1 倍；0.5% ÷ 20 日波动 ${(zv.vol * 100).toFixed(1)}%，再 × 一半资金 = 本金的 ${zv.pct.toFixed(0)}%${h.factor < 1 ? "（策略变弱，已减半）" : ""}</i></div>

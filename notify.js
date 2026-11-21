@@ -493,9 +493,29 @@ function qxsCalc(k4, k1) {
     age: dage[sigI] / 6, sigDist: e200[sigI] / c[sigI] - 1, sigRsi: r[sigI], l1: e5[L], l2: e34[L], touched: touchedAt(L), hot7: hotAt(L), gate: !!gateOk[L] };
 }
 
-async function push(title, body, important) {
+// ===== 下单卡（2026-11-21）：开仓 / 平仓推送直接写好币安合约的数量、价格、保险止损，点推送打开币安该币合约页 =====
+// 本金：GitHub 仓库 Settings → Secrets and variables → Actions → Variables 里加 CAPITAL（单位 USDT）；没设就按 1000 算
+const CAPITAL = Number(process.env.CAPITAL) > 0 ? Number(process.env.CAPITAL) : 1000;
+const CAPITAL_SET = Number(process.env.CAPITAL) > 0;
+const BINANCE = b => `https://www.binance.com/zh-CN/futures/${b}USDT`;
+const qtyFmt = (q, p) => p >= 1000 ? q.toFixed(4) : p >= 50 ? q.toFixed(2) : p >= 1 ? q.toFixed(1) : String(Math.round(q));
+function orderCard(o) {
+  // o: { coin, side: -1 空 / 1 多, price, pct, lev, sysStopTxt, guard }
+  const notional = CAPITAL * o.pct / 100, qty = notional / o.price, margin = notional / o.lev;
+  const lim = o.side < 0 ? o.price * 1.001 : o.price * 0.999;
+  return `\n—— 下单卡（本金 ${CAPITAL} U${CAPITAL_SET ? "" : "，默认值，可在 GitHub 设 CAPITAL"}）——\n` +
+    `币安 U 本位合约 ${o.coin}USDT · ${o.side < 0 ? "开空" : "开多"} · 全仓 ${o.lev} 倍\n` +
+    `数量 ${qtyFmt(qty, o.price)} ${o.coin}（名义 ≈ ${Math.round(notional)} U，保证金 ≈ ${Math.round(margin)} U）\n` +
+    `限价 ${fmt(lim)}（比现价${o.side < 0 ? "高" : "低"} 0.1%，30 分钟没成交就按市价）\n` +
+    `保险止损：${o.side < 0 ? "买入" : "卖出"}止损市价单，触发价 ${fmt(o.guard)}（只防睡着时暴${o.side < 0 ? "涨" : "跌"}；${o.sysStopTxt}）\n` +
+    `点这条推送直接打开币安 ${o.coin} 合约`;
+}
+function closeCard(coin, side) {
+  return `\n—— 平仓 ——\n币安 U 本位合约 ${coin}USDT：${side < 0 ? "平空" : "平多"}全部（市价或盘口限价），再撤掉之前挂的保险止损单。点这条推送直接打开币安 ${coin} 合约`;
+}
+async function push(title, body, important, link) {
   if (!KEY) { console.log("  [试运行，不推送]", title, "|", body); return; }
-  const url = `https://api.day.app/${KEY}/${encodeURIComponent(title)}/${encodeURIComponent(body)}?group=${encodeURIComponent("决策台")}&url=${encodeURIComponent(PAGE)}${important ? "&level=timeSensitive" : ""}`;
+  const url = `https://api.day.app/${KEY}/${encodeURIComponent(title)}/${encodeURIComponent(body)}?group=${encodeURIComponent("决策台")}&url=${encodeURIComponent(link || PAGE)}${important ? "&level=timeSensitive" : ""}`;
   try { const r = await fetch(url); console.log("  推送", r.status, title); } catch (e) { console.log("  推送失败", title, e.message); }
 }
 (async () => {
@@ -872,17 +892,40 @@ async function push(title, body, important) {
       events.push(merged);
     }
   }
+  if (!first && state.v11 && !state.v12) await push("推送升级：点开就能下单",
+    `开仓 / 平仓推送现在多了一张"下单卡"：币安合约的数量、名义金额、保证金、限价、保险止损都算好了；点推送直接打开币安这个币的合约页。\n保险止损放在系统止损外面 2%，只防睡着时暴涨暴跌；系统止损仍按 4 小时 / 日线收盘判断，看平仓推送。\n${CAPITAL_SET ? `按本金 ${CAPITAL} U 计算。` : "现在按默认本金 1000 U 计算，在 GitHub 设 CAPITAL 变量就能改成你的实际本金。"}`, false);
   if (!first && state.v10 && !state.v11) await push("新增：主流币大波动提醒",
     `BTC、ETH、SOL 1 小时涨跌超过平时的 5 倍时推一条（每个币每月约 2～3 次），告诉你属于哪种情况、历史上之后一般怎么走、模型有没有持仓。\n回测：大波动之后基本五五开，所以只是提醒你看一眼，不是开仓信号；只有"上涨趋势里的急跌"多数会反弹（56%～64%），这时别恐慌卖。`, false);
   if (!first && state.v9 && !state.v10) await push("双轨实验线：可切周期 + 扩到 38 个币",
     `网页「双轨实验」页可以切 1 / 2 / 3 / 4 小时和"主流 13 个 / 全部 38 个"。回测：1、2 小时三条线都不赚（只看不做）；3 小时能赚但比 4 小时弱；4 小时最好。\n新 25 个币在 4 小时上只有双轨做多两段都赚，所以只加这一条推送，标"双轨实验线（新币）"；两种做空在新币上不稳，不推。推送仍然只看 4 小时。`, false);
   if (!first && state.v8 && !state.v9) await push("新增：双轨实验线",
     `网页多了一个「双轨实验」页：同样 13 个币，"什么时候进"改用红线 EMA5 / 黄线 EMA34——日线向下时，反弹碰到黄线再跌回红线下方就开空；止盈止损和现行一样（RSI 35 / EMA200）。只做 A 级。\n回测：胜率 66%、平均每次 +0.6%、持仓 2～3 天（现行反弹做空：61%、+2.2%、4 天）。胜率高、单笔小、好拿一些。\n两条线并排记账，推送会标「双轨开空 / 双轨平空」。实验线不进首页持仓统计。`, false);
-  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.v9 = 1; state.v10 = 1; state.v11 = 1; state.trendCoins = SYMBOLS;
+  state.v3 = 1; state.v4 = 1; state.v5 = 1; state.v6 = 1; state.v7 = 1; state.v8 = 1; state.v9 = 1; state.v10 = 1; state.v11 = 1; state.v12 = 1; state.trendCoins = SYMBOLS;
+  // 下单卡：只给"可以开 / 该平"的事件加（B/C 级观察、只提醒类不加）
+  for (const e of events) {
+    try {
+      const x = e.coin && R[e.coin]; if (!x) continue;
+      const p = x.price;
+      if (e.kind === "open" && x.v) {
+        const z = sizePct(p, x.v.stop, 1, SHORT_CAP, H.short.factor);
+        if (z && H.short.factor > 0) { e.body += orderCard({ coin: e.coin, side: -1, price: p, pct: z.pct, lev: 2, guard: x.v.stop * 1.02, sysStopTxt: `系统止损是 4小时收盘站上 ${fmt(x.v.stop)} 才平，看平空推送` }); e.link = BINANCE(e.coin); }
+      } else if (e.kind === "qsopen" && e.important && x.qs) {
+        const z = sizePct(p, x.qs.stop, 1, SHORT_CAP, H.short.factor);
+        if (z) { e.body += orderCard({ coin: e.coin, side: -1, price: p, pct: z.pct, lev: 2, guard: x.qs.stop * 1.02, sysStopTxt: `系统止损是 4小时收盘站上 ${fmt(x.qs.stop)} 才平，看平空推送` }); e.link = BINANCE(e.coin); }
+      } else if (e.kind === "qopen") {
+        const q = x.q || x.qe, z = sizeVol(x.t ? x.t.vol20 : null, 40, H.qx.factor * LONG_SPLIT);
+        if (q && z && H.qx.factor > 0) { e.body += orderCard({ coin: e.coin, side: 1, price: p, pct: z.pct, lev: 1, guard: q.l2 * 0.95, sysStopTxt: `系统没有固定止损，双轨死叉才卖，看平多推送` }); e.link = BINANCE(e.coin); }
+      } else if (e.kind === "topen" && x.t) {
+        const z = sizeVol(x.t.vol20, 40, H.trend.factor * LONG_SPLIT), st = e.stop || (x.t.open && x.t.open.stop);
+        if (z && st && H.trend.factor > 0) { e.body += orderCard({ coin: e.coin, side: 1, price: p, pct: z.pct, lev: 1, guard: st * 0.97, sysStopTxt: `系统止损是日线收盘跌破 ${fmt(st)} 才平，看平多推送` }); e.link = BINANCE(e.coin); }
+      } else if (e.kind === "close" || e.kind === "qsclose") { e.body += closeCard(e.coin, -1); e.link = BINANCE(e.coin); }
+      else if (e.kind === "qclose" || e.kind === "tclose") { e.body += closeCard(e.coin, 1); e.link = BINANCE(e.coin); }
+    } catch (err) { console.log("下单卡生成失败", e.coin, err.message); }
+  }
   // 每日状态单独发（不并进汇总），其余超过 6 条才合并
   const dg = events.filter(e => e.kind === "digest"), rest = events.filter(e => e.kind !== "digest");
   if (rest.length > 6) await push(`${rest.length} 条新提醒`, rest.map(e => e.title).join("\n"), true);
-  else for (const e of rest) await push(e.title, e.body, e.important);
+  else for (const e of rest) await push(e.title, e.body, e.important, e.link);
   for (const e of dg) await push(e.title, e.body, false);
   if (!KEY) { console.log("没有设置 BARK_KEY：这次只是试运行，不保存状态。"); return; }
   // 推送记录：网页「消息」页读取 alerts.json
