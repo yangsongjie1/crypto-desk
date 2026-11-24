@@ -2180,8 +2180,10 @@ function aaPage() {
   const all = Object.entries(A.pos || {}).map(([b, p]) => ({ b, ...p, n: p.stk ? null : pxNow(b) })).sort((x, y) => y.t - x.t);
   const live = all.filter(x => x.side && !(x.stk && x.side < 0)), idle = all.filter(x => !(x.side && !(x.stk && x.side < 0)));
   let seen = 0; try { seen = +localStorage.getItem("desk:aaSeen") || 0; } catch (e) {}
-  const fresh = live.filter(x => x.t > seen && Date.now() - x.t < 24 * 3600e3);
-  const banner = fresh.length ? `<section class="aa-banner"><b>🔔 新信号</b> ${fresh.map(x => `${esc(x.b)} ${x.stk ? "买入" : x.side > 0 ? "做多" : "做空"}${gtxt(x) ? `[${gtxt(x)}]` : ""} ${px(x.px)}（${tm(x.t)}）`).join("；")}<button data-aaseen="${Math.max(...fresh.map(x => x.t))}">知道了</button></section>` : "";
+  // 11-25：美股「卖出」也是要操作的信号（手上有就卖），24 小时内单独显示卡片并进横幅
+  const exits = idle.filter(x => x.stk && !x.side && Date.now() - x.t < 24 * 3600e3);
+  const fresh = [...live, ...exits].filter(x => x.t > seen && Date.now() - x.t < 24 * 3600e3);
+  const banner = fresh.length ? `<section class="aa-banner"><b>🔔 新信号</b> ${fresh.map(x => `${esc(x.b)} ${x.stk ? (x.side ? "买入" : "卖出") : x.side > 0 ? "做多" : "做空"}${gtxt(x) ? `[${gtxt(x)}]` : ""} ${px(x.px)}（${tm(x.t)}）`).join("；")}<button data-aaseen="${Math.max(...fresh.map(x => x.t))}">知道了</button></section>` : "";
   const card = x => {
     const long = x.side > 0, sell = x.stk ? "卖" : "平", r = x.n && x.px ? x.side * (x.n / x.px - 1) : null, hit = x.hit || 0, isNew = Date.now() - x.t < 4 * 3600e3;
     const tag = x.stk ? `<span class="aa-tag up">美股 · 买入持有</span>` : `<span class="aa-tag ${long ? "up" : "down"}">${long ? "做多" : "做空"}</span>`;
@@ -2233,6 +2235,8 @@ function aaPage() {
   </style>
   ${banner}
   ${adSection("持仓卡片", `${live.length} 个在持仓（A ${live.filter(x => x.grade === "A").length} · B ${live.filter(x => x.grade === "B").length} · 不做 ${live.filter(x => x.grade === "C" || x.grade === "X").length}）· 新信号排最前 · 每 30 秒刷新${S.aaErr ? ` · <span style="color:var(--red)">${esc(S.aaErr)}</span>` : ""}`)}
+  ${exits.length ? `<div class="aa-cards">${exits.map(x => `<article class="aa-card down ${Date.now() - x.t < 4 * 3600e3 ? "new" : ""}"><header><div><b class="aa-coin">${esc(x.b)}</b><span class="aa-tag down">美股 · 卖出</span>${Date.now() - x.t < 4 * 3600e3 ? `<span class="aa-new">新</span>` : ""}</div></header>
+      <div class="aa-row"><span>卖出参考价 <b>${px(x.px)}</b> · ${tm(x.t)} · 日线</span></div><p class="aa-muted">AlgoAlpha 日线翻空：手上有 ${esc(x.b)} 就卖掉，然后空仓等下一次「买入」。美股只做多，不做空。没有持有就不用管。</p></article>`).join("")}</div>` : ""}
   ${live.length ? `<div class="aa-cards">${live.map(card).join("")}</div>` : `<section class="ad-panel"><div class="ad-placeholder">现在没有持仓信号。币在 4 小时 K 线收盘、美股在日线收盘、信号反转时才发；第一条到了这里就会出现。</div></section>`}
   ${idle.length ? `<p class="aa-idle">空仓等待：${idle.map(x => `<b>${esc(x.b)}</b>（${tm(x.t)} ${x.stk ? "卖出" : "平仓"}）`).join("、")}</p>` : ""}
   <details class="ad-panel"><summary><b>规则说明</b></summary><p>TradingView 付费指标 AlgoAlpha（Smart Signals Assistant 默认参数）。币：4 小时，出 ▲ 做多、出 ▼ 做空，反向信号就平仓反手；美股：日线，只做多，▲ 买入、▼ 卖出空仓。没有固定止损——方向不对按你自己的止损走。和系统其他信号分开记账，不进首页持仓。</p>
