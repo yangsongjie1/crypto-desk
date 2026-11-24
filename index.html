@@ -2100,12 +2100,19 @@ function aaPage() {
   const A = S.aa || { pos: {}, log: [] }, TPM = A.tpm || [2, 4, 6], TPQ = A.tpq || [30, 30, 20];
   const pxNow = b => (S.aaPx && S.aaPx[b]) || S.coins[b]?.price || null;
   const tm = t => new Date(t).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+  const gradeOf = x => {
+    if (x.stk || !x.side) return "";
+    const nx = new Date(Math.floor(x.t / 14400e3) * 14400e3 + 14400e3).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+    if (x.side > 0) return x.grade === "strong" ? `<span class="aa-g s">强信号</span>` : x.grade === "weak" || x.btcUp === false ? `<span class="aa-g w">弱 · BTC 逆风</span>` : x.grade === "unconf" ? `<span class="aa-g w">未确认</span>` : `<span class="aa-g p">待确认 ${nx}</span>`;
+    return x.grade === "weak" ? `<span class="aa-g w">弱 · 一窝蜂翻空</span>` : x.atr ? `<span class="aa-g p">等反弹 ${px(x.px + x.atr)} 再空</span>` : "";
+  };
+  const gtxt = x => x.stk || !x.side ? "" : x.side > 0 ? (x.grade === "strong" ? "强" : x.grade === "weak" || x.btcUp === false ? "弱" : x.grade === "unconf" ? "未确认" : "待确认") : (x.grade === "weak" ? "弱" : "等反弹");
   const pc = (r, d = 1) => r == null ? "—" : `<span style="color:var(${r >= 0 ? "--green" : "--red"})">${r >= 0 ? "+" : ""}${(r * 100).toFixed(d)}%</span>`;
   const all = Object.entries(A.pos || {}).map(([b, p]) => ({ b, ...p, n: p.stk ? null : pxNow(b) })).sort((x, y) => y.t - x.t);
   const live = all.filter(x => x.side && !(x.stk && x.side < 0)), idle = all.filter(x => !(x.side && !(x.stk && x.side < 0)));
   let seen = 0; try { seen = +localStorage.getItem("desk:aaSeen") || 0; } catch (e) {}
   const fresh = live.filter(x => x.t > seen && Date.now() - x.t < 24 * 3600e3);
-  const banner = fresh.length ? `<section class="aa-banner"><b>🔔 新信号</b> ${fresh.map(x => `${esc(x.b)} ${x.stk ? "买入" : x.side > 0 ? "做多" : "做空"} ${px(x.px)}（${tm(x.t)}）`).join("；")}<button data-aaseen="${Math.max(...fresh.map(x => x.t))}">知道了</button></section>` : "";
+  const banner = fresh.length ? `<section class="aa-banner"><b>🔔 新信号</b> ${fresh.map(x => `${esc(x.b)} ${x.stk ? "买入" : x.side > 0 ? "做多" : "做空"}${gtxt(x) ? `[${gtxt(x)}]` : ""} ${px(x.px)}（${tm(x.t)}）`).join("；")}<button data-aaseen="${Math.max(...fresh.map(x => x.t))}">知道了</button></section>` : "";
   const card = x => {
     const long = x.side > 0, sell = x.stk ? "卖" : "平", r = x.n && x.px ? x.side * (x.n / x.px - 1) : null, hit = x.hit || 0, isNew = Date.now() - x.t < 4 * 3600e3;
     const tag = x.stk ? `<span class="aa-tag up">美股 · 买入持有</span>` : `<span class="aa-tag ${long ? "up" : "down"}">${long ? "做多" : "做空"}</span>`;
@@ -2119,10 +2126,11 @@ function aaPage() {
         return `<div class="aa-tp ${done ? "done" : ""}"><span>止盈${i + 1}</span><b>${px(v)}</b><span>${sell} ${TPQ[i] || 0}%</span><span class="aa-gap">${done ? "✓ 已到" : gap == null ? "—" : `还差 ${(gap * 100).toFixed(1)}%`}</span></div>`;
       }).join("") + `<div class="aa-rest">剩 ${100 - TPQ.reduce((a, b) => a + b, 0)}%：拿到 AlgoAlpha 反转信号再${sell}</div>`;
     }
-    const guard = hit > 0 ? `已到止盈1：剩余仓位止损可挪到进场价 ${px(x.px)}（保本）` : `没有固定止损，方向不对按你自己的止损走；到止盈1后可把止损挪到进场价`;
+    const stopPx = x.atr ? x.px - x.side * 3 * x.atr : null;
+    const guard = hit > 0 ? `已到止盈1：剩余仓位止损可挪到进场价 ${px(x.px)}（保本）` : stopPx ? `保护价 <b>${px(stopPx)}</b>（进场 ${long ? "−" : "+"} 3 倍 ATR，${long ? "跌破" : "涨破"}自己走${x.n && x.side * (x.n - stopPx) <= 0 ? "，<b style=\"color:var(--red)\">已触及</b>" : ""}）；到止盈1后可挪到进场价` : `没有固定止损，方向不对按你自己的止损走`;
     const link = x.stk ? `<span class="aa-muted">富途下单</span>` : `<a class="aa-go" href="https://www.binance.com/zh-CN/futures/${x.m === 1000 ? "1000" : ""}${esc(x.b)}USDT" target="_blank" rel="noopener">去币安 ↗</a>`;
     return `<article class="aa-card ${long ? "up" : "down"} ${isNew ? "new" : ""}">
-      <header><div><b class="aa-coin">${esc(x.b)}</b>${tag}${isNew ? `<span class="aa-new">新</span>` : ""}</div><div class="aa-r">${pc(r)}</div></header>
+      <header><div><b class="aa-coin">${esc(x.b)}</b>${tag}${gradeOf(x)}${isNew ? `<span class="aa-new">新</span>` : ""}</div><div class="aa-r">${pc(r)}</div></header>
       <div class="aa-row"><span>进场 <b>${px(x.px)}</b> · ${tm(x.t)} · ${x.stk ? "日线" : "4 小时"}</span><span>${x.n ? `现价 <b>${px(x.n)}</b>` : x.stk ? "现价看富途" : "现价 —"}</span></div>
       ${bar}<div class="aa-ladder">${ladder}</div>
       <footer><span class="aa-muted">${guard}</span>${link}</footer></article>`;
@@ -2139,6 +2147,7 @@ function aaPage() {
   .aa-card header,.aa-card footer,.aa-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
   .aa-coin{font-size:20px;margin-right:8px} .aa-r{font-size:18px;font-weight:700}
   .aa-tag{font-size:12px;padding:3px 8px;border-radius:99px;font-weight:600;margin-right:6px} .aa-tag.up{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)} .aa-tag.down{background:color-mix(in srgb,var(--red) 18%,transparent);color:var(--red)}
+  .aa-g{font-size:11px;padding:2px 7px;border-radius:6px;font-weight:700;margin-right:6px}.aa-g.s{background:var(--green);color:var(--bg)}.aa-g.p{border:1px solid var(--accent);color:var(--accent)}.aa-g.w{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
   .aa-new{font-size:11px;padding:2px 6px;border-radius:6px;background:var(--accent);color:var(--bg);font-weight:700}
   .aa-row{font-size:13px;color:var(--muted)} .aa-row b{color:var(--ink)}
   .aa-bar{position:relative;height:8px;border-radius:99px;background:var(--sunk);margin:6px 0 0}
@@ -2153,10 +2162,11 @@ function aaPage() {
   .aa-idle{font-size:13px;color:var(--muted);margin:0 0 18px} .aa-idle b{color:var(--ink)}
   </style>
   ${banner}
-  ${adSection("持仓卡片", `${live.length} 个在持仓 · 新信号排最前 · 每 30 秒刷新${S.aaErr ? ` · <span style="color:var(--red)">${esc(S.aaErr)}</span>` : ""}`)}
+  ${adSection("持仓卡片", `${live.length} 个在持仓（强 ${live.filter(x => gtxt(x) === "强").length} · 待确认 ${live.filter(x => gtxt(x) === "待确认").length} · 弱 ${live.filter(x => gtxt(x) === "弱").length}）· 新信号排最前 · 每 30 秒刷新${S.aaErr ? ` · <span style="color:var(--red)">${esc(S.aaErr)}</span>` : ""}`)}
   ${live.length ? `<div class="aa-cards">${live.map(card).join("")}</div>` : `<section class="ad-panel"><div class="ad-placeholder">现在没有持仓信号。币在 4 小时 K 线收盘、美股在日线收盘、信号反转时才发；第一条到了这里就会出现。</div></section>`}
   ${idle.length ? `<p class="aa-idle">空仓等待：${idle.map(x => `<b>${esc(x.b)}</b>（${tm(x.t)} ${x.stk ? "卖出" : "平仓"}）`).join("、")}</p>` : ""}
   <details class="ad-panel"><summary><b>规则说明</b></summary><p>TradingView 付费指标 AlgoAlpha（Smart Signals Assistant 默认参数）。币：4 小时，出 ▲ 做多、出 ▼ 做空，反向信号就平仓反手；美股：日线，只做多，▲ 买入、▼ 卖出空仓。没有固定止损——方向不对按你自己的止损走。和系统其他信号分开记账，不进首页持仓。</p>
+  <p class="ad-small">强弱（11-24 用 25 个币 2022 年起 4054 笔历史成交检验）：做多时 BTC 在日线 EMA200 上方、并且下一根 4 小时收盘仍高于进场价 = 强信号（历史平均每笔 +3.3%）；BTC 在下方 = 弱（近两年平均 +0.2%），不做或小仓。做多信号马上进最好，晚进、挂回调都更差。做空等 1 倍 ATR 反弹再进（24 小时内没到就放弃）；同时十几个币一起翻空的历史上平均 −3.6%，不跟。保护价 = 进场 ∓ 3 倍 ATR，历史上和一直拿着收益差不多，但能封住大亏。条件是看完数据挑的，可能偏乐观。</p>
   <p class="ad-small">分批止盈（中转每 5 分钟查一次价，到了推 Bark）：进场价 ± ${TPM.map((m, i) => `${m} 倍 ATR ${x0(i)}`).join("、")}，剩 ${100 - TPQ.reduce((a, b) => a + b, 0)}% 等反转信号。ATR = 这个币平时一根 K 线大概波动多少（币 4 小时、美股日线），波动大的止盈位离得远。只是提示，没回测过，历史上分批会少赚大行情。</p>
   <p class="ad-small">回测（TradingView，2022 年起，全仓复利、单边手续费 0.1%，没算资金费）：BTC +27%（回撤 56%）、ETH +183%、SOL +3655%（回撤 71%）。闭源指标，无法确认是否重绘；这是实验，按小仓位做。信号经 TradingView → Cloudflare 中转，几秒内推到 Bark、同步到这里。</p></details>
   ${adSection("信号记录", done.length ? `已平 ${done.length} 笔，赚钱 ${w} 笔，每笔平均 ${(sum / done.length * 100).toFixed(1)}%（不含手续费、资金费）` : "反手时会算出上一笔的盈亏")}<section class="ad-panel ad-table-scroll">${logs ? `<table class="ad-table"><tr><th>时间</th><th>币</th><th>信号</th><th class="num">价格</th><th class="num">上一笔盈亏 / 止盈时浮盈</th></tr>${logs}</table>` : '<div class="ad-placeholder">暂无记录</div>'}</section>
