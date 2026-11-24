@@ -1042,6 +1042,22 @@ async function push(title, body, important, link) {
       else if (e.kind === "qclose" || e.kind === "tclose") { e.body += closeCard(e.coin, 1); e.link = BINANCE(e.coin); }
     } catch (err) { console.log("下单卡生成失败", e.coin, err.message); }
   }
+  // 11-24 统一决策：其他线的开仓推送后面附上 AlgoAlpha 对这个币的结论（AlgoAlpha 定方向和仓位，其他线只加分或否决）
+  const OPENK = { open: -1, qsopen: -1, qopen: 1, topen: 1, dopen: 1 };
+  if (events.some(e => OPENK[e.kind] && e.important)) {
+    let aa = null; try { aa = await getJSON("https://aa-relay.yangsongjie521.workers.dev/signals?t=" + Date.now()); } catch (err) { console.log("AlgoAlpha 中转没读到", err.message); }
+    for (const e of events) {
+      const sd = OPENK[e.kind]; if (!sd || !e.important || !aa || !aa.pos) continue;
+      const a = aa.pos[e.coin]; let line;
+      if (!a || !a.side || a.stk) line = "AlgoAlpha：这个币不在 AlgoAlpha 的 50 个币里或还没有信号，按本线规则。";
+      else {
+        const g = a.grade, gw = g === "A" ? "A 级" : g === "B" ? "B 级" : g === "C" ? "C 级（不做）" : g === "X" ? "冲突（不做）" : "评分中", dir = a.side > 0 ? "做多" : "做空";
+        if (a.side === sd) line = `AlgoAlpha：同向，也在${dir}（${gw}）。${sd > 0 && (g === "A" || g === "B") ? "历史上 AlgoAlpha 多单碰上唐奇安 / 双轨同时做多，平均每笔明显更好。" : ""}`;
+        else line = `⚠️ AlgoAlpha 方向相反：它在${dir}（${gw}）。${sd < 0 ? "历史上 AlgoAlpha 多单碰上反弹做空，平均每笔约 −1.7%，两边一起开就是对冲白交手续费。" : "历史上 AlgoAlpha 空单碰上唐奇安做多，平均每笔约 −1.1%。"}这种「后出的信号和已有 AlgoAlpha 仓位反向」没单独测过，别两边都开，选一边。`;
+      }
+      e.body = (e.body || "") + "\n" + line;
+    }
+  }
   // 每日状态单独发（不并进汇总），其余超过 6 条才合并
   const dg = events.filter(e => e.kind === "digest"), rest = events.filter(e => e.kind !== "digest");
   if (rest.length > 6) await push(`${rest.length} 条新提醒`, rest.map(e => e.title).join("\n"), true);
