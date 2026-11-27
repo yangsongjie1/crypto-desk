@@ -1049,11 +1049,12 @@ async function push(title, body, important, link) {
     for (const e of events) {
       const sd = OPENK[e.kind]; if (!sd || !e.important || !aa || !aa.pos) continue;
       const a = aa.pos[e.coin]; let line;
-      if (!a || !a.side || a.stk) line = "AlgoAlpha：这个币不在 AlgoAlpha 的 50 个币里或还没有信号，按本线规则。";
+      if (!a || !a.side || a.stk) line = "AlgoAlpha：中转里没有这个币的仓位（不在 50 个币里，或 11-23 中转接上后还没出过信号，之前的仓位没记到），按本线规则；想确认就看 TradingView 图上 AlgoAlpha 最后一个 ▲ / ▼。";
       else {
         const g = a.grade, gw = g === "A" ? "A 级" : g === "B" ? "B 级" : g === "C" ? "C 级（不做）" : g === "X" ? "冲突（不做）" : "评分中", dir = a.side > 0 ? "做多" : "做空";
         if (a.side === sd) line = `AlgoAlpha：同向，也在${dir}（${gw}）。${sd > 0 && (g === "A" || g === "B") ? "历史上 AlgoAlpha 多单碰上唐奇安 / 双轨同时做多，平均每笔明显更好。" : ""}`;
-        else line = `⚠️ AlgoAlpha 方向相反：它在${dir}（${gw}）。${sd < 0 ? "历史上 AlgoAlpha 多单碰上反弹做空，平均每笔约 −1.7%，两边一起开就是对冲白交手续费。" : "历史上 AlgoAlpha 空单碰上唐奇安做多，平均每笔约 −1.1%。"}这种「后出的信号和已有 AlgoAlpha 仓位反向」没单独测过，别两边都开，选一边。`;
+        else if (g === "C" || g === "X") line = `AlgoAlpha 方向相反：它在${dir}，但那单是${gw}，按统一规则本来就不做，所以这笔照常按本线规则做。${sd < 0 ? "历史上 AlgoAlpha 多单碰上反弹做空，AlgoAlpha 那边平均每笔约 −1.7%（吃亏的是 AlgoAlpha 的多单）。" : "历史上 AlgoAlpha 空单碰上唐奇安做多，AlgoAlpha 那边平均每笔约 −1.1%。"}如果你手上已经按 AlgoAlpha 开了反方向的单，别两边都拿，先平掉那一边。`;
+        else line = `⚠️ AlgoAlpha 方向相反：它在${dir}（${gw}，是能做的等级）。${sd < 0 ? "历史上 AlgoAlpha 多单碰上反弹做空，平均每笔约 −1.7%，两边一起开就是对冲白交手续费。" : "历史上 AlgoAlpha 空单碰上唐奇安做多，平均每笔约 −1.1%。"}这种「后出的信号和已有 AlgoAlpha 仓位反向」没单独测过，别两边都开，选一边。`;
       }
       e.body = (e.body || "") + "\n" + line;
     }
